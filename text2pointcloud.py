@@ -8,6 +8,7 @@ from point_e.config import MODEL_CONFIGS,DIFFUSION_CONFIGS
 
 from point_e.utils.download import load_checkpoint
 from point_e.diffusion.sampler import PointCloudSampler
+from point_e.utils.plotting import plot_point_cloud
 
 def load_model(base_model_name:str, upsampler_name:str, device:torch.device):
     base_model = model_from_config(MODEL_CONFIGS[base_model_name], device=device)
