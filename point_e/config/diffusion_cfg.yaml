@@ -1,0 +1,18 @@
+DIFFUSION_CONFIGS:
+  base40M-imagevec: &base_diffusion_config
+    channel_biases: [0.0, 0.0, 0.0, -1.0, -1.0, -1.0]
+    channel_scales: [2.0, 2.0, 2.0, 0.007843137255, 0.007843137255, 0.007843137255]
+    mean_type: epsilon
+    schedule: cosine
+    timesteps: 1024
+  base40M-textvec: *base_diffusion_config
+  base40M-uncond: *base_diffusion_config
+  base40M: *base_diffusion_config
+  base300M: *base_diffusion_config
+  base1B: *base_diffusion_config
+  upsample:
+    channel_biases: [0.0, 0.0, 0.0, -1.0, -1.0, -1.0]
+    channel_scales: [2.0, 2.0, 2.0, 0.007843137255, 0.007843137255, 0.007843137255]
+    mean_type: epsilon
+    schedule: linear
+    timesteps: 1024

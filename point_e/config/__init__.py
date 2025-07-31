@@ -1,0 +1,2 @@
+from .diffusion_dataclass import DIFFUSION_CONFIGS
+from .model_dataclass import MODEL_CONFIGS
