@@ -10,7 +10,7 @@ from .gaussian_diffusion import (
     GaussianDiffusion,
     SpacedDiffusion,
     get_named_beta_schedule,
-    space_timesteps,
+    space_timesteps
 )
 from ..config.diffusion_dataclass import BaseDiffusionConfig
 
