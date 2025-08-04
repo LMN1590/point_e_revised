@@ -1,9 +1,10 @@
 import torch
 import torch.nn as nn
 
-from typing import Sequence, Dict, Any, Iterator, Callable,Tuple, List
+from typing import Sequence, Dict, Any, Iterator, Callable,Tuple, List, Union, Optional
 
-from .k_diffusion import karras_sample_progressive
+from .k_diffusion.karras_sample import karras_sample_progressive
+from .gaussian_diffusion import GaussianDiffusion,SpacedDiffusion
 from ..utils.point_cloud import PointCloud
 
 class PointCloudSampler:
@@ -24,7 +25,7 @@ class PointCloudSampler:
         self,
         device: torch.device,
         models: Sequence[nn.Module],
-        diffusions: Sequence[nn.Module],
+        diffusions: Sequence[Union[GaussianDiffusion,SpacedDiffusion]],
         num_points: Sequence[int],
         aux_channels: Sequence[str],
         model_kwargs_key_filter: Sequence[str] = ("*",),
@@ -36,6 +37,8 @@ class PointCloudSampler:
         sigma_min: Sequence[float] = (1e-3, 1e-3),
         sigma_max: Sequence[float] = (120, 160),
         s_churn: Sequence[float] = (3, 0),
+        
+        cond_fn:Sequence[Optional[Callable[...,torch.Tensor]]] = (None,None)
     ):
         n = len(models)
         assert n>0
@@ -98,7 +101,8 @@ class PointCloudSampler:
 
     def sample_batch_progressive(
         self,
-        batch_size: int, model_kwargs: Dict[str, Any]
+        batch_size: int, model_kwargs: Dict[str, Any],
+        pre_noise:torch.Tensor
     )->Iterator[torch.Tensor]:
         samples = None
         for (
@@ -167,6 +171,8 @@ class PointCloudSampler:
                 if "low_res" in stage_model_kwargs:
                     samples = torch.cat([stage_model_kwargs["low_res"][:len(samples)], samples], dim=-1)
                 yield samples
+            print('done with one')
+            
     
     def _uncond_guide_model(
         self, model: Callable[..., torch.Tensor], scale: float
@@ -261,6 +267,9 @@ class PointCloudSampler:
         return pos, aux
 
     def output_to_point_clouds(self, output: torch.Tensor) -> List[PointCloud]:
+        """
+        This function process all samples inside of the batch hence the for-loops.
+        """
         res = []
         for sample in output:
             xyz, aux = self.split_model_output(sample[None], rescale_colors=True)

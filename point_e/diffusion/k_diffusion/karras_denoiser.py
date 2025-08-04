@@ -24,26 +24,28 @@ THE SOFTWARE.
 
 import numpy as np
 import torch as th
+import torch.nn as nn
 
-from .gaussian_diffusion import GaussianDiffusion, mean_flat
+from ..diff_utils import mean_flat
+from .karras_utils import append_dims,append_zero
 
 class KarrasDenoiser:
     def __init__(self, sigma_data: float = 0.5):
         self.sigma_data = sigma_data
 
-    def get_snr(self, sigmas):
+    def get_snr(self, sigmas:th.Tensor):
         return sigmas**-2
 
-    def get_sigmas(self, sigmas):
+    def get_sigmas(self, sigmas:th.Tensor):
         return sigmas
 
-    def get_scalings(self, sigma):
+    def get_scalings(self, sigma:th.Tensor):
         c_skip = self.sigma_data**2 / (sigma**2 + self.sigma_data**2)
         c_out = sigma * self.sigma_data / (sigma**2 + self.sigma_data**2) ** 0.5
         c_in = 1 / (sigma**2 + self.sigma_data**2) ** 0.5
         return c_skip, c_out, c_in
 
-    def training_losses(self, model, x_start, sigmas, model_kwargs=None, noise=None):
+    def training_losses(self, model:nn.Module, x_start:th.Tensor, sigmas:th.Tensor, model_kwargs=None, noise=None):
         if model_kwargs is None:
             model_kwargs = {}
         if noise is None:
@@ -67,7 +69,7 @@ class KarrasDenoiser:
 
         return terms
 
-    def denoise(self, model, x_t, sigmas, **model_kwargs):
+    def denoise(self, model:nn.Module, x_t:th.Tensor, sigmas:th.Tensor, **model_kwargs):
         c_skip, c_out, c_in = [append_dims(x, x_t.ndim) for x in self.get_scalings(sigmas)]
         rescaled_t = 1000 * 0.25 * th.log(sigmas + 1e-44)
         model_output = model(c_in * x_t, rescaled_t, **model_kwargs)

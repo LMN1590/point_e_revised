@@ -86,3 +86,5 @@ def mean_flat(tensor:th.Tensor):
     Take the mean over all non-batch dimensions.
     """
     return tensor.flatten(1).mean(1)
+
+
