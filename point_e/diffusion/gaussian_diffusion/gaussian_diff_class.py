@@ -399,7 +399,7 @@ class GaussianDiffusion:
         self,
         model:nn.Module,
         shape:Tuple,
-        noise=None,
+        noise:Optional[th.Tensor]=None,
         clip_denoised=False,
         denoised_fn=None,
         cond_fn=None,
@@ -420,7 +420,7 @@ class GaussianDiffusion:
             device = next(model.parameters()).device
         assert isinstance(shape, (tuple, list))
         if noise is not None:
-            img = noise
+            img = noise.to(device)
         else:
             img = th.randn(*shape, device=device) * temp
         indices = list(range(self.num_timesteps))[::-1]

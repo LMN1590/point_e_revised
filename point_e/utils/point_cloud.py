@@ -3,7 +3,9 @@ from dataclasses import dataclass
 from typing import BinaryIO, Dict, List, Optional, Union
 
 import numpy as np
+import os
 
+from .path import LOG_DIR
 from .ply_util import write_ply
 
 COLORS = frozenset(["R", "G", "B", "A"])
@@ -62,6 +64,16 @@ class PointCloud:
                 else None    
             )
         )
+    
+    @staticmethod
+    def write_batch_ply(samples:List['PointCloud'],extra_info:str):
+        log_dir = os.path.join(LOG_DIR,extra_info)
+        os.makedirs(log_dir,exist_ok=True)
+        for idx,sample in enumerate(samples):
+            f_name = f'result_{idx}_{extra_info}.ply'
+            f_dir = os.path.join(log_dir,f_name)
+            with open(f_dir,'wb') as f:
+                sample.write_ply(f)
     # endregion
     
     # region Sampling

@@ -102,8 +102,9 @@ class PointCloudSampler:
     def sample_batch_progressive(
         self,
         batch_size: int, model_kwargs: Dict[str, Any],
-        pre_noise:torch.Tensor
+        pre_noise:List[Optional[torch.Tensor]]=[None,None]
     )->Iterator[torch.Tensor]:
+        assert len(pre_noise) == self.num_stages
         samples = None
         for (
             model, diffusion,
@@ -112,6 +113,7 @@ class PointCloudSampler:
             stage_sigma_min, stage_sigma_max,
             stage_s_churn,
             stage_key_filter,
+            noise
         ) in zip(
             self.models, self.diffusions,
             self.num_points, self.guidance_scale,
@@ -119,6 +121,7 @@ class PointCloudSampler:
             self.sigma_min, self.sigma_max,
             self.s_churn,
             self.model_kwargs_key_filter,
+            pre_noise
         ):
             stage_model_kwargs = model_kwargs.copy()
             if stage_key_filter != "*":
@@ -139,6 +142,7 @@ class PointCloudSampler:
                     
             
             if stage_use_karras:
+                assert noise is None, "Predefined Noise is not supported in Karras Diffusion"
                 samples_it = karras_sample_progressive(
                     diffusion=diffusion,
                     model=model,
@@ -163,6 +167,7 @@ class PointCloudSampler:
                     model_kwargs=stage_model_kwargs,
                     device=self.device,
                     clip_denoised=self.clip_denoised,
+                    noise = noise
                 )
                 
                 
