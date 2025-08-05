@@ -216,6 +216,7 @@ class GaussianDiffusion:
                 return x.clamp(-1, 1)
             return x
 
+        model_eps = None
         if self.model_mean_type == "x_prev":
             pred_xstart = process_xstart(
                 self._predict_xstart_from_xprev(x_t=x, t=t, xprev=model_output)
@@ -228,6 +229,7 @@ class GaussianDiffusion:
                 pred_xstart = process_xstart(
                     self._predict_xstart_from_eps(x_t=x, t=t, eps=model_output)
                 )
+                model_eps = model_output
             model_mean, _, _ = self.q_posterior_mean_variance(x_start=pred_xstart, x_t=x, t=t)
         else:
             raise NotImplementedError(self.model_mean_type)
@@ -239,6 +241,7 @@ class GaussianDiffusion:
             "log_variance": model_log_variance,
             "pred_xstart": pred_xstart,
             "extra": extra,
+            "eps": model_eps
         }
     
     def _predict_xstart_from_eps(self, x_t:th.Tensor, t:th.Tensor, eps:th.Tensor):
@@ -275,8 +278,8 @@ class GaussianDiffusion:
         This uses the conditioning strategy from Sohl-Dickstein et al. (2015).
         One of the desciprtion for this function can be found in Algo 1 of https://arxiv.org/pdf/2105.05233
         """
-        model_kwargs['pred_xstart'] = p_mean_var['pred_xstart']
-
+        model_kwargs['diffusion_param'] = self
+        model_kwargs['p_mean_var'] = p_mean_var
         gradient = cond_fn(x, t, **model_kwargs)
         new_mean = p_mean_var["mean"].float() + p_mean_var["variance"] * gradient.float()
         return new_mean
