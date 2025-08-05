@@ -275,6 +275,8 @@ class GaussianDiffusion:
         This uses the conditioning strategy from Sohl-Dickstein et al. (2015).
         One of the desciprtion for this function can be found in Algo 1 of https://arxiv.org/pdf/2105.05233
         """
+        model_kwargs['pred_xstart'] = p_mean_var['pred_xstart']
+
         gradient = cond_fn(x, t, **model_kwargs)
         new_mean = p_mean_var["mean"].float() + p_mean_var["variance"] * gradient.float()
         return new_mean
