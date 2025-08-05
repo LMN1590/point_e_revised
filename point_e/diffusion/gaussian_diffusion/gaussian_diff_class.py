@@ -278,9 +278,11 @@ class GaussianDiffusion:
         This uses the conditioning strategy from Sohl-Dickstein et al. (2015).
         One of the desciprtion for this function can be found in Algo 1 of https://arxiv.org/pdf/2105.05233
         """
-        model_kwargs['diffusion_param'] = self
-        model_kwargs['p_mean_var'] = p_mean_var
-        gradient = cond_fn(x, t, **model_kwargs)
+        condition_kwargs = model_kwargs.copy()
+        condition_kwargs['diffusion_param'] = self
+        condition_kwargs['p_mean_var'] = p_mean_var
+        
+        gradient = cond_fn(x, t, **condition_kwargs)
         new_mean = p_mean_var["mean"].float() + p_mean_var["variance"] * gradient.float()
         return new_mean
 
@@ -601,7 +603,7 @@ class GaussianDiffusion:
             device = next(model.parameters()).device
         assert isinstance(shape, (tuple, list))
         if noise is not None:
-            img = noise
+            img = noise.to(device)
         else:
             img = th.randn(*shape, device=device) * temp
         indices = list(range(self.num_timesteps))[::-1]

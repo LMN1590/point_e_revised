@@ -10,14 +10,15 @@ class OriginDistanceCond(BaseCond):
         self, 
         x: torch.Tensor, t: torch.Tensor,
         p_mean_var:Dict[str,torch.Tensor],
-        diff:GaussianDiffusion, 
+        diffusion_param:GaussianDiffusion, 
         **model_kwargs
     ) -> torch.Tensor:
+        
         pred_xstart = self._predict_xstart_from_eps(
             x,t,
             p_mean_var['eps'],
-            diff
+            diffusion_param
         )
         
         pos = pred_xstart[:,:3]
-        return (pos**2).sum()
+        return (pos**2).mean()

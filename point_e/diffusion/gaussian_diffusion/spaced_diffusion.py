@@ -3,6 +3,7 @@ import numpy as np
 from typing import Iterable
 
 from .gaussian_diff_class import GaussianDiffusion
+from .wrapped_model import _WrappedModel
 
 class SpacedDiffusion(GaussianDiffusion):
     """
