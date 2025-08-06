@@ -1,4 +1,5 @@
 import numpy as np
+import torch as th
 
 from typing import Iterable
 
@@ -40,7 +41,16 @@ class SpacedDiffusion(GaussianDiffusion):
 
     def condition_score(self, cond_fn, *args, **kwargs):
         return super().condition_score(self._wrap_model(cond_fn), *args, **kwargs)
+    
+    def _predict_xstart_from_eps(self, x_t:th.Tensor, t:th.Tensor, eps:th.Tensor):
+        new_ts = self._map_timesteps(t)
+        return super()._predict_xstart_from_eps(x_t,new_ts,eps)
 
+    def _map_timesteps(self,ts:th.Tensor):
+        map_tensor = th.tensor(self.timestep_map, device=ts.device, dtype=ts.dtype)
+        new_ts = map_tensor[ts]
+        return new_ts
+    
     def _wrap_model(self, model):
         if isinstance(model, _WrappedModel):
             return model
