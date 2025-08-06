@@ -19,6 +19,6 @@ class OriginDistanceCond(BaseCond):
             p_mean_var['eps'],
             diffusion_param
         )
-        
-        pos = pred_xstart[:,:3]
+        B = pred_xstart.shape[0]
+        pos = pred_xstart[:B//2,:3]
         return (pos**2).mean()
