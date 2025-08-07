@@ -42,6 +42,7 @@ class SpacedDiffusion(GaussianDiffusion):
         return super().condition_mean(self._wrap_model(cond_fn), *args, **kwargs)
 
     def condition_score(self, cond_fn, *args, **kwargs):
+        kwargs['model_kwargs']['diffusion'] = self
         return super().condition_score(self._wrap_model(cond_fn), *args, **kwargs)
     
     # def _predict_xstart_from_eps(self, x_t:th.Tensor, t:th.Tensor, eps:th.Tensor):
