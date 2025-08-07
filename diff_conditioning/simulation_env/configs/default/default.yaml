@@ -1,0 +1,108 @@
+# Seeds and logging
+seed: 100
+torch_seed: 100
+render_every_iter: 10
+save_every_iter: 10
+log_every_iter: 1
+log_reward: false
+
+# Loading
+load_args: null
+load_controller: null
+load_rl_controller: null
+load_designer: null
+
+# Saving
+save_designer: false
+save_controller: false
+
+# Evaluation
+eval: false
+
+# Environment
+out_dir: /tmp/tmp
+non_taichi_device: torch_cpu  # options: ['numpy', 'torch_cpu', 'torch_gpu']
+env: land_environment         # options: ['land_environment', 'aquatic_environment', 'dummy_env', 'manipulation_environment']
+env_config_file: fixed_plain.yaml
+objective_reward_mode: null
+dump_rendering_data: false
+
+# Optimization
+n_iters: 1
+n_frames: 10
+loss_types:                     # options: see below
+  - FinalStepCoMLoss
+loss_coefs:
+  - 1.0
+optimize_designer: false
+set_design_types:              # options: ['geometry', 'softness', 'actuator', 'actuator_direction','is_passive_fixed']
+  - geometry
+  - softness
+  - actuator
+  - actuator_direction
+  - is_passive_fixed
+optimize_design_types:         # options: ['geometry', 'softness', 'actuator', 'actuator_direction']
+  - geometry
+  - softness
+  - actuator
+optimize_controller: false
+
+# Loss: FinalStepCoMLoss
+x_mul:
+  - 1.0
+  - 0.0
+  - 0.0
+
+# Loss: TrajectoryFollowingLoss
+goal:
+  - 0.8
+  - 0.0
+  - 0.0
+  - 1700
+
+# Loss: PerStepCoVLoss
+v_mul:
+  - 1.0
+  - 0.0
+  - 0.0
+
+# Loss: AnimatedEMDLoss
+mesh_dir: ./local/meshes/fantasy_horse
+substep_freq: 100
+mesh_num_points: 5000
+final_target_idx: null
+recenter_mesh_target: false
+
+# Loss: VelocityFollowingLoss
+v_following_v_mul:
+  - 1.0
+  - 1.0
+  - 1.0
+v_following_mode: 0
+
+# Loss: WaypointFollowingLoss
+# (No args defined)
+
+# Loss: RotationLoss
+rotation_up_direction:
+  - 0.0
+  - 1.0
+  - 0.0
+
+# Loss: ThrowingObjectLoss
+obj_x_mul:
+  - 1.0
+  - 0.0
+  - 0.0
+obj_particle_id: 2
+
+# Loss: ObjectVelocityLoss
+obj_v_mul:
+  - 1.0
+  - 0.0
+  - 0.0
+
+# Movement of static objects
+fixed_v: default.json
+
+device_memory_fraction: 0.7

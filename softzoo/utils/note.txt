@@ -1,0 +1,5 @@
+const.py: Contain static variable to be used in SoftZoo
+
+general_utils.py: Contain general util function - Extended Enum, extract direction, retrieve obj
+
+visualization_utils.py: Contain functions for visualizing in the annotation process.

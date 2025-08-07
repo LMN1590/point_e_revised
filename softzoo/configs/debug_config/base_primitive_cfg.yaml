@@ -1,0 +1,25 @@
+density: 1.0
+friction: 0.9
+initial_position: [0.35, 0.04, 0.4]
+initial_rotation: [1.0, 0.0, 0.0, 0.0]
+initial_twist: [0.0, 0.0, 0.0]
+initial_velocity: [0.0, 0.0, 0.0]
+initial_wrench: [0.0, 0.0, 0.0]
+item_id: -1
+material: DiffAquaMuscle
+particle_id: 3
+particle_info:
+  E_0: 10000.0
+  active: False
+  lambd_0: 2777.777777777778
+  max_coef_restitution: 0.1
+  mu_0: 4166.666666666667
+  muscle_direction: [0.0, 1.0, 0.0]
+  nu_0: 0.2
+  p_rho_0: 1000.0
+sample_density: 48
+semantic_id: 3
+size: [0.1, 0.06, 0.1]
+softness: 0.0
+spawn_order: 0
+type: Primitive.Box

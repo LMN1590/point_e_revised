@@ -1,0 +1,201 @@
+ENVIRONMENT:
+  CUSTOM:
+    has_matter_on_ground: False
+    matter_id: 4
+    matter_materials: []
+    matter_padding: [32, 3, 32]
+    matter_sample_density: 8
+    matter_semantic_id: 4
+    matter_thickness: 0.02
+    matter_youngs_modulus: 100000.0
+    randomize_terrain: False
+  ITEMS: [
+    CfgNode({
+      'type': 'Static.BoundingBox', 
+      'semantic_id': 0
+    }), 
+    CfgNode({
+      'type': 'Static.Terrain', 
+      'surface': 'Surface.Sticky', 
+      'semantic_id': 0, 
+      'friction': 0.05, 
+      'min_height': 0.1, 
+      'max_height': 0.1, 
+      'signed_dist_thresh': 0.01
+    }), 
+    CfgNode({
+      'type': 'Primitive.Ellipsoid', 
+      'radius': [0.02, 0.02, 0.02], 
+      'initial_position': [0.36, 0.275, 0.4], 
+      'initial_velocity': [0.0, 0.0, 0.0], 
+      'sample_density': 16, 
+      'material': 'Snow', 
+      'particle_id': 2, 
+      'semantic_id': 2
+    })
+  ]
+  actuation_strength: 0.3
+  design_space: pbr
+  design_space_config:
+    base_shape:
+      initial_position: [0.35, 0.0, 0.4]
+      initial_velocity: [0.0, 0.0, 0.0]
+      material: DiffAquaMuscle
+      particle_id: 3
+      particle_info:
+        E_0: 10000.0
+        muscle_direction: [0.0, 1.0, 0.0]
+        p_rho_0: 1000.0
+      sample_density: 64
+      semantic_id: 3
+      size: [0.04, 0.2, 0.04]
+      type: Primitive.Box
+    initial_principle_direction: [1.0, 0.0, 0.0]
+    n_actuators: 10
+    p_rho_lower_bound_mul: 0.1
+  frame_dt: 0.008
+  objective: None
+  objective_config:
+    
+  observation_space: ['time', 'com']
+  use_renderer: True
+  use_semantic_occupancy: True
+RENDERER:
+  GGUI:
+    ambient_light: (0.5, 0.5, 0.5)
+    background: None
+    background_color: (0.0, 0.0, 0.0)
+    camera_fov: 55
+    camera_lookat: [0.5, 0.05, 0.5]
+    camera_position: [0.5, 0.3, 0.0]
+    fps: 30
+    ground_surface_cmap: textures/ice.png
+    meshification_colors: []
+    meshify_particle_ids: []
+    offscreen_rendering: True
+    particle_coloring_mode: actuation
+    particle_colors: [[0.023, 0.522, 0.49, 0.2], [0.925, 0.329, 0.231, 1.0], [0.933, 0.933, 0.941, 1.0], [0.94901961, 0.82352941, 0.6627451, 1.0], [0.0, 0.0, 0.0, 1.0], [1.0, 0.0, 0.0, 1.0], [0.945, 0.761, 0.49, 1.0], [1.0, 0.0, 0.0, 1.0], [0.388, 0.349, 0.321, 1.0], [0.353, 0.263, 0.196, 1.0]]
+    particle_radius: 0.002
+    res: (640, 480)
+    save_to_video: True
+    title: GGUI Renderer
+    tmp_fpath: /tmp/tmp.png
+  GL:
+    anisotropy_scale: 1.0
+    background: skybox/vary_sky.jpg
+    background_brightness_increase: 0
+    bodies_info:
+      DiffAquaMuscle:
+        anisotropy_scale: 1.0
+        draw_density: False
+        draw_diffuse: False
+        draw_ellipsoids: False
+        draw_points: True
+        needs_smoothing: False
+        particle_color: [0.7, 0.0, 0.0, 0.95]
+        particle_radius: 0.006
+      Elastic:
+        anisotropy_scale: 1.2
+        draw_density: False
+        draw_diffuse: False
+        draw_ellipsoids: True
+        draw_points: False
+        needs_smoothing: True
+        particle_color: [0.925, 0.329, 0.231, 1.0]
+        particle_radius: 0.001
+      Mud:
+        anisotropy_scale: 1.0
+        draw_density: False
+        draw_diffuse: False
+        draw_ellipsoids: True
+        draw_points: False
+        needs_smoothing: True
+        particle_color: [0.388, 0.349, 0.321, 0.8]
+        particle_radius: 0.001
+      Plasticine:
+        anisotropy_scale: 0.5
+        draw_density: False
+        draw_diffuse: False
+        draw_ellipsoids: True
+        draw_points: False
+        needs_smoothing: True
+        particle_color: [0.278, 0.153, 0.102, 1.0]
+        particle_radius: 0.003
+      Sand:
+        anisotropy_scale: 1.0
+        draw_density: False
+        draw_diffuse: False
+        draw_ellipsoids: False
+        draw_points: True
+        needs_smoothing: False
+        particle_color: [0.94901961, 0.82352941, 0.6627451, 1.0]
+        particle_radius: 0.003
+      SimpleMuscle:
+        
+      Snow:
+        anisotropy_scale: 1.0
+        draw_density: False
+        draw_diffuse: False
+        draw_ellipsoids: True
+        draw_points: False
+        needs_smoothing: True
+        particle_color: [0.933, 0.933, 0.941, 0.95]
+        particle_radius: 0.001
+      Stationary:
+        
+      Water:
+        anisotropy_scale: 1.0
+        draw_density: False
+        draw_diffuse: False
+        draw_ellipsoids: True
+        draw_points: False
+        needs_smoothing: True
+        particle_color: [0.023, 0.522, 0.49, 0.2]
+        particle_radius: 0.0015
+    camera_fov: 50
+    camera_lookat: [0.425, 0.309, 0.17]
+    camera_position: [0.15, 0.75, -0.45]
+    draw_plane: False
+    dump_data: False
+    fluid_rest_distance: 0.0125
+    fps: 30
+    gl_color_gamma: 3.5
+    ground_surface_brightness_increase: 0
+    ground_surface_cmap: texture/soil1_512x512.png
+    light_fov: 50
+    light_lookat: [0.5, 0.5, 0.49]
+    light_position: [0.5, 5.0, 0.5]
+    msaa_samples: 8
+    rendering_scale: 2.0
+    res: (640, 480)
+    save_to_video: True
+    smoothing: 0.5
+    tile_texture: False
+  GUI:
+    background_color: 1126209
+    circle_radius: 1.5
+    fps: 30
+    particle_colors: (427399, 15553851, 15658736, 16776960, 0, 16711680, 8421504)
+    res: 512
+    rigid_body_color: 0
+    static_component_color: 0
+    title: GUI Renderer
+  type: ggui
+SIMULATOR:
+  E_0: 100000.0
+  base_active_materials: []
+  checkpoint_cache_device: torch_cpu
+  default_dt: 0.0005
+  dim: 3
+  gravity: (0.0, -1.4, 0.0)
+  max_actuation: 10
+  max_num_particles: 50000
+  max_substeps: 3500
+  max_substeps_local: 20
+  needs_grad: True
+  nu_0: 0.2
+  p_rho_0: 1000.0
+  padding: [28, 3, 28]
+  quality: 1.0
+  use_checkpointing: True
+  use_dynamic_field: False

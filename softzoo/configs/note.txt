@@ -1,0 +1,9 @@
+Contains all default config for the SoftZoo environment.
+
+debug_config: Contains debug extracted config for the MPM solver atm
+env_configs: contains corresponding configs for the environments
+
+config_dataclass.py: Contain the dataclass for the config
+config.py: Contains initialization of basic config using YACS
+
+== Not Done ==

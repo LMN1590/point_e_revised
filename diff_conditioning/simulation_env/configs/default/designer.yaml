@@ -1,0 +1,77 @@
+# Designer [General]
+designer_type: mlp
+designer_lr: 0.003
+designer_geometry_offset: 0.5
+designer_softness_offset: 0.5
+
+# Designer [MLP]
+mlp_coord_input_names:
+  - x
+  - y
+  - z
+  - d_xy
+  - d_yz
+  - d_xz
+  - d_xyz
+mlp_filters:
+  - 32
+  - 32
+mlp_activation: Tanh
+mlp_seed_meshes: []
+
+# Designer [Diff-CPPN]
+cppn_coord_input_names:
+  - x
+  - y
+  - z
+  - d_xy
+  - d_yz
+  - d_xz
+  - d_xyz
+cppn_seed_meshes: []
+cppn_n_hiddens: 3
+cppn_activation_repeat: 10
+cppn_activation_options:
+  - sin
+  - sigmoid
+
+# Designer [Annotated-PCD]
+annotated_pcd_path: null
+annotated_pcd_n_voxels: 60
+annotated_pcd_passive_softness_mul: 10
+annotated_pcd_passive_geometry_mul: 0.5
+
+# Designer [SDF Basis]
+sdf_basis_pcd_paths: []
+sdf_basis_mesh_paths: []
+sdf_basis_passive_softness_mul: 10
+sdf_basis_passive_geometry_mul: 0.5
+sdf_basis_init_coefs_geometry: null
+sdf_basis_init_coefs_softness: null
+sdf_basis_init_coefs_actuator: null
+sdf_basis_init_coefs_actuator_direction: null
+sdf_basis_use_global_coefs: false
+sdf_basis_n_voxels: 60
+sdf_basis_coefs_activation: linear
+sdf_basis_actuator_mul: 1.0
+
+# Designer [Wasserstein Barycenter]
+wass_barycenter_init_coefs_geometry: null
+wass_barycenter_init_coefs_actuator: null
+wass_barycenter_init_coefs_softness: null
+wass_barycenter_passive_softness_mul: 10
+wass_barycenter_passive_geometry_mul: 0.5
+
+# Designer [Loss Landscape Voxel-based Representation]
+loss_landscape_vbr_grid_index:
+  - 0
+  - 0
+  - 0
+loss_landscape_vbr_value_range:
+  - 0.0
+  - 1.0
+loss_landscape_vbr_n_trials: 10
+loss_landscape_vbr_trial_type: geometry
+
+# Designer [Misc]
+static_as_fixed: false

@@ -1,0 +1,40 @@
+# Action space settings
+action_space: actuation        # choices: ['actuation', 'particle_v', 'actuator_v']
+action_v_strength: 1.0
+
+# Controller general config
+controller_type: sin_wave_open_loop  # choices: ['sin_wave_open_loop', 'pure_sin_wave_open_loop', 'random', 'trajopt', 'mlp', 'sin_wave_closed_loop', 'all_on']
+controller_lr: 0.003
+
+# Controller [Sine wave]
+n_sin_waves: 4
+actuation_omega:
+  - 30.0
+
+# Controller [Trajectory optimization]
+actuation_activation: linear   # choices: ['tanh', 'softmax', 'linear']
+
+# Controller [Pure Sine wave]
+sin_omega_mul: 10.0
+
+# Controller [MLP]
+controller_obs_names:
+  - com
+  - objective
+controller_mlp_hidden_filters:
+  - 32
+  - 32
+controller_mlp_activation: Tanh
+controller_mlp_final_activation: null
+
+# Controller [Closed-loop Sine wave]
+closed_loop_n_sin_waves: 4
+closed_loop_actuation_omega:
+  - 30.0
+closed_loop_sinwave_obs_names:
+  - com
+  - objective
+closed_loop_sinwave_hidden_filters:
+  - 32
+  - 32
+closed_loop_sinwave_activation: Tanh

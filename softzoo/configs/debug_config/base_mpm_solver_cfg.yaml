@@ -1,0 +1,19 @@
+E_0: 100000.0
+checkpoint_cache_device: torch_cpu
+dim: 3
+gravity: (0.0, -3.8, 0.0)
+max_actuation: 10
+max_substeps_local: 20
+needs_grad: True
+nu_0: 0.2
+p_rho_0: 1000.0
+quality: 1.0
+use_checkpointing: True
+use_dynamic_field: False
+
+base_active_materials: ['Water']
+
+default_dt: 0.0005
+max_num_particles: 150000
+max_substeps: 3500
+padding: [28, 3, 28]

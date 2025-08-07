@@ -1,0 +1,1 @@
+This shows that rigid body is possible for primitives, however, it does not support checkpointing.
