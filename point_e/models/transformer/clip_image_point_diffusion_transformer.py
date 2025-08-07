@@ -44,6 +44,7 @@ class CLIPImagePointDiffusionTransformer(PointDiffusionTransformer):
         images: Optional[Iterable[Optional[ImageType]]] = None,
         texts: Optional[Iterable[Optional[str]]] = None,
         embeddings: Optional[Iterable[Optional[torch.Tensor]]] = None,
+        **model_kwargs
     ):
         """
         :param x: an [N x C x T] tensor.

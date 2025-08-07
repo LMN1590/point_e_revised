@@ -39,7 +39,7 @@ class UpsamplePointDiffusionTransformer(PointDiffusionTransformer):
             else None,
         )
 
-    def forward(self, x: torch.Tensor, t: torch.Tensor, *, low_res: torch.Tensor):
+    def forward(self, x: torch.Tensor, t: torch.Tensor, *, low_res: torch.Tensor,**model_kwargs):
         """
         :param x: an [N x C1 x T] tensor.
         :param t: an [N] tensor.

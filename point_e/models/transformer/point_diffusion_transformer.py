@@ -49,7 +49,7 @@ class PointDiffusionTransformer(nn.Module):
             self.output_proj.weight.zero_()
             self.output_proj.bias.zero_()
             
-    def forward(self, x:torch.Tensor, t:torch.Tensor):
+    def forward(self, x:torch.Tensor, t:torch.Tensor,**model_kwargs):
         """
         :param x: an [N x C x T] tensor.
         :param t: an [N] tensor.

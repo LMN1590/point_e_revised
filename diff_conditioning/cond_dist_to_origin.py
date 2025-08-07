@@ -14,6 +14,9 @@ class OriginDistanceCond(BaseCond):
         **model_kwargs
     ) -> torch.Tensor:
         
+        if 'original_ts' in model_kwargs:
+            t = model_kwargs['original_ts']
+        
         pred_xstart = diffusion._predict_xstart_from_eps(
             x,t,
             p_mean_var['eps']

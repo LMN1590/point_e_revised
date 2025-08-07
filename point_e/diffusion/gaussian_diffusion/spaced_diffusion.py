@@ -37,14 +37,16 @@ class SpacedDiffusion(GaussianDiffusion):
         return super().training_losses(self._wrap_model(model), *args, **kwargs)
 
     def condition_mean(self, cond_fn, *args, **kwargs):
+        kwargs['model_kwargs']['diffusion'] = self
+        # kwargs['model_kwargs']
         return super().condition_mean(self._wrap_model(cond_fn), *args, **kwargs)
 
     def condition_score(self, cond_fn, *args, **kwargs):
         return super().condition_score(self._wrap_model(cond_fn), *args, **kwargs)
     
-    def _predict_xstart_from_eps(self, x_t:th.Tensor, t:th.Tensor, eps:th.Tensor):
-        new_ts = self._map_timesteps(t)
-        return super()._predict_xstart_from_eps(x_t,new_ts,eps)
+    # def _predict_xstart_from_eps(self, x_t:th.Tensor, t:th.Tensor, eps:th.Tensor):
+    #     new_ts = self._map_timesteps(t)
+    #     return super()._predict_xstart_from_eps(x_t,new_ts,eps)
 
     def _map_timesteps(self,ts:th.Tensor):
         map_tensor = th.tensor(self.timestep_map, device=ts.device, dtype=ts.dtype)

@@ -9,6 +9,7 @@ class _WrappedModel:
         self.original_num_steps = original_num_steps
 
     def __call__(self, x:th.Tensor, ts:th.Tensor, **kwargs):
+        kwargs['original_ts'] = ts
         map_tensor = th.tensor(self.timestep_map, device=ts.device, dtype=ts.dtype)
         new_ts = map_tensor[ts]
         return self.model(x, new_ts, **kwargs)

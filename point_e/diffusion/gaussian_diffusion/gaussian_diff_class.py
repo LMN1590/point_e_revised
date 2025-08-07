@@ -279,7 +279,7 @@ class GaussianDiffusion:
         One of the desciprtion for this function can be found in Algo 1 of https://arxiv.org/pdf/2105.05233
         """
         condition_kwargs = model_kwargs.copy()
-        condition_kwargs['diffusion_param'] = self
+        condition_kwargs['diffusion'] = self if "diffusion" not in condition_kwargs else condition_kwargs['diffusion']
         condition_kwargs['p_mean_var'] = p_mean_var
         
         gradient = cond_fn(x, t, **condition_kwargs)
@@ -301,7 +301,10 @@ class GaussianDiffusion:
         alpha_bar = _extract_into_tensor(self.alphas_cumprod, t, x.shape)
 
         eps = self._predict_eps_from_xstart(x, t, p_mean_var["pred_xstart"])
-        eps = eps - (1 - alpha_bar).sqrt() * cond_fn(x, t, **model_kwargs)
+        condition_kwargs = model_kwargs.copy()
+        condition_kwargs['diffusion'] = self if "diffusion" not in condition_kwargs else condition_kwargs['diffusion']
+        condition_kwargs['p_mean_var'] = p_mean_var
+        eps = eps - (1 - alpha_bar).sqrt() * cond_fn(x, t, **condition_kwargs)
 
         out = p_mean_var.copy()
         out["pred_xstart"] = self._predict_xstart_from_eps(x, t, eps)
