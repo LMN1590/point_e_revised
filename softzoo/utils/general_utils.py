@@ -34,7 +34,7 @@ def extract_part_pca(pcd, return_part_colors=False, within_part_clustering=True)
     
     colors = np.asarray(pcd.colors)
     points = np.asarray(pcd.points)
-    points_std = StandardScaler().fit_transform(points)
+    
     unique_colors = np.unique(colors, axis=0)
     
     disc_colors = np.array(plt.get_cmap('tab20').colors + plt.get_cmap('tab20b').colors + plt.get_cmap('tab20c').colors)
@@ -45,13 +45,19 @@ def extract_part_pca(pcd, return_part_colors=False, within_part_clustering=True)
         ],axis=0)
     
     unique_colors = disc_colors[:len(unique_colors),:3]
+    return extract_part_pca_inner(points,colors,return_part_colors,within_part_clustering,unique_colors)
+    
+    
+    
+def extract_part_pca_inner(points,lbls,return_part_colors=False,within_part_clustering=True, unique_lbls = []): 
+    points_std = StandardScaler().fit_transform(points)
     
     all_part_pc = dict()
     all_part_pc_pca = dict()
     all_part_pc_std = dict()
     
-    for i, unique_color in enumerate(unique_colors):
-        mask = np.all(colors == unique_color[None,:], axis=1)
+    for i, unique_color in enumerate(unique_lbls):
+        mask = np.all(lbls == unique_color[None,:], axis=1)
         masked_points = points[mask]
         masked_points_std = points_std[mask]
         
@@ -92,11 +98,10 @@ def extract_part_pca(pcd, return_part_colors=False, within_part_clustering=True)
         all_part_pca_singular_values[k] = pca.singular_values_
 
     if return_part_colors:
-        return all_part_pca_components, all_part_pca_singular_values, all_part_pc, unique_colors
+        return all_part_pca_components, all_part_pca_singular_values, all_part_pc, unique_lbls
     else:
-        return all_part_pca_components, all_part_pca_singular_values, all_part_pc
-    
-    
+        return all_part_pca_components, all_part_pca_singular_values, all_part_pc   
+
 def recursive_getattr(obj, name):
     out = obj
     for v in name.split('.'):

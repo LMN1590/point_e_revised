@@ -13,7 +13,7 @@ from softzoo.utils.computation_utils import directions_to_spherical
 if TYPE_CHECKING:
     from softzoo.envs.base_env import BaseEnv
 
-class UnAnnotatedPCD(Base):
+class AnnotatedPCD(Base):
     def __init__(
         self,lr,
         env:'BaseEnv',pcd_path:str,n_voxels:int=20,

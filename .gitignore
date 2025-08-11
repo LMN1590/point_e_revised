@@ -4,3 +4,4 @@ asset/
 *_cache/
 logs/
 csv_output/
+local/

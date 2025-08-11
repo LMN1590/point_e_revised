@@ -8,7 +8,7 @@ n_frames: 200
 controller_type: all_on
 action_v_strength: 0.3
 
-loss_types: ThrowingObjectLoss
+loss_types: [ThrowingObjectLoss]
 obj_particle_id: 2
 obj_x_mul: [0.,-1.,0.]
 

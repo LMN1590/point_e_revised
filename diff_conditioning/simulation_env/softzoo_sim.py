@@ -56,7 +56,7 @@ class SoftzooSimulation(BaseCond):
             
         self._init_checkpointing(config)
         
-        logger = Logger(args.out_dir)
+        logger = Logger(config.out_dir)
         def time_fn(func):
             def inner(*args, **kwargs):
                 logger.tic(func.__qualname__)
@@ -67,7 +67,7 @@ class SoftzooSimulation(BaseCond):
 
         self.loss_set.compute_loss = time_fn(self.loss_set.compute_loss)
         self.controller.update = time_fn(self.controller.update)
-        self.designer.update = time_fn(self.designer.update)
+        # self.designer.update = time_fn(self.designer.update)
         
         self.data_for_plots = dict(reward=[], loss=[])
 
@@ -143,7 +143,11 @@ class SoftzooSimulation(BaseCond):
             x,t,
             p_mean_var['eps']
         )
+        B = pred_xstart.shape[0]
+        pos = pred_xstart[:B//2,:3]
+        self.designer = 
         
 
 if __name__=='__main__':
-    print(SoftzooSimulation.load_config('custom_cfg.yaml'))
+    config = SoftzooSimulation.load_config('custom_cfg.yaml')
+    env = SoftzooSimulation(config,0.3,True)
