@@ -166,13 +166,8 @@ class SoftzooSimulation(BaseCond):
             gripper_pos_tensor = pos,
             device = self.torch_device,
         )
-        print(self.designer.occupancy.shape,self.designer.occupancy.grad_fn)
         self.designer.reset()
         design_out = self.designer()
-        print({
-            k:(v.shape,v.requires_grad)
-            for k,v  in design_out.items()
-        })
         return torch.zeros((1,1))
     # endregion
     
