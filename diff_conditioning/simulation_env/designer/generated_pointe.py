@@ -28,7 +28,6 @@ class GeneratedPointEPCD(Base):
         **kwargs
     ):
         super(GeneratedPointEPCD, self).__init__(env)
-
         self.passive_geometry_mul = passive_geometry_mul
         self.passive_softness_mul = passive_softness_mul
         
@@ -37,7 +36,7 @@ class GeneratedPointEPCD(Base):
         gripper_labels = self.get_muscle_label(gripper_pos_np)
         base_pos_tensor, base_labels = self.calculate_base_location(gripper_pos_np)
         
-        complete_pos_tensor = torch.concat([gripper_pos_tensor,base_pos_tensor],dim=0)
+        complete_pos_tensor = torch.concat([gripper_pos_tensor,base_pos_tensor],dim=0).float()
         complete_labels = np.concatenate([gripper_labels,base_labels],axis=0)
         unique_lbls = np.unique(complete_labels)
         assert self.env.sim.solver.n_actuators == unique_lbls.shape[0], "The number of actuators must be equal to the number of generated labels. Probllem in configuration files"
@@ -53,25 +52,25 @@ class GeneratedPointEPCD(Base):
         actuator_directions = directions_to_spherical(actuator_directions)
         self.actuator_directions = nn.Parameter(torch.from_numpy(actuator_directions))
         # endregion
-        
+
         # region Calculate Occupancy (!!!!! Ensure Differentiability)
         coords = self.env.design_space.get_x(s=0).float()
         if isinstance(coords, np.ndarray):
-            coords = torch.from_numpy(coords)
+            coords = torch.from_numpy(coords).float()
             
-        coords_min, coords_mean, coords_max = coords.min(0), coords.mean(0), coords.max(0)
-        points_min, points_mean, points_max = complete_pos_tensor.min(0), complete_pos_tensor.mean(0), complete_pos_tensor.max(0)
+        coords_min, coords_mean, coords_max = coords.min(0).values, coords.mean(0), coords.max(0).values
+        points_min, points_mean, points_max = complete_pos_tensor.min(0).values, complete_pos_tensor.mean(0), complete_pos_tensor.max(0).values
         def calibrate_points(_pts:torch.Tensor, y_offset=0.):
             _pts_calibrated = _pts - points_mean # center
-            _pts_calibrated = _pts_calibrated / torch.max(points_max.values - points_min.values) * torch.max(coords_max.values - coords_min.values) # rescale
+            _pts_calibrated = _pts_calibrated / torch.max(points_max - points_min) * torch.max(coords_max - coords_min) # rescale
             _pts_calibrated = _pts_calibrated + coords_mean # recenter
             _pts_calibrated = _pts_calibrated + torch.clip(coords_min - _pts_calibrated.min(0).values, min=0, max=torch.inf) # make sure within min-bound
-            _pts_calibrated = _pts_calibrated - torch.clip(_pts_calibrated.max(0).values - coords_max, min=0, max=np.inf) # make sure within max-bound
+            _pts_calibrated = _pts_calibrated - torch.clip(_pts_calibrated.max(0).values - coords_max, min=0, max=torch.inf) # make sure within max-bound
             _pts_calibrated[:,1] = _pts_calibrated[:,1] + y_offset # align lower bound in y-axis
             return _pts_calibrated
         complete_pos_tensor_calibrated = calibrate_points(complete_pos_tensor)
-        y_offset = coords_min[1] - complete_pos_tensor_calibrated.min(0)[1] # The supposedly distance between the lowest point of the point cloud and the bouding box, to ensure it is at the bottom.
         
+        breakpoint()
         pairwise_dist = torch.cdist(coords,complete_pos_tensor_calibrated) # , sim_coords(n), generated_coords(m)
         p_ji = torch.exp(-(pairwise_dist**2) / (2 * sigma**2))  # (n, m) # Smooth per-point contribution (Gaussian kernel)
         self.occupancy = 1 - torch.prod(1 - p_ji, dim=1)  # (n,) # Soft OR across points → final occupancy per voxel
@@ -80,9 +79,9 @@ class GeneratedPointEPCD(Base):
         # region Cluster Sim Coords
         passive_lbl = 0
         self.actuator = torch.zeros((self.env.sim.solver.n_actuators, coords.shape[0])) #(n_act,n)
-        self.is_passive = torch.zeros((coords.shape[0])) #(n)
+        self.is_passive = torch.zeros((coords.shape[0])).bool() #(n)
         
-        coords_lbls_prob = torch.zeros((self.env.sim.solver.n_actuators,coords.shape[0]))
+        coords_lbls_prob = torch.zeros((coords.shape[0],self.env.sim.solver.n_actuators))
         for lbl in unique_lbls:
             coords_cur_lbls_prob = p_ji[:,complete_labels==lbl]
             coords_lbls_prob[:,lbl] = 1 - torch.prod(1-coords_cur_lbls_prob,dim=1)
@@ -91,6 +90,7 @@ class GeneratedPointEPCD(Base):
             if lbl==passive_lbl: self.is_passive[coords_cluster==lbl] = 1.
             else: self.actuator[lbl,coords_cluster==lbl] = 1.
         
+    
         self.device = torch.device(device)
         self.to(self.device)
         
@@ -98,7 +98,7 @@ class GeneratedPointEPCD(Base):
         # Label 0 is reserved for the base, where no velocity is allowed to propagate to hold the gripper up.
         # The rest of the labels comes in pair (2n+1,2n+2) denotes the muscle pair n.
         
-        base_pcd = o3d.io.read_point_cloud('diff_conditioning/simulation_env/asset/base_base.pcd')
+        base_pcd = o3d.io.read_point_cloud('diff_conditioning/simulation_env/asset/fixed_base.pcd')
         base_points = np.asarray(base_pcd.points)
         
         base_coords_min, base_coords_max,base_coords_mean = base_points.min(0),base_points.max(0),base_points.mean(0)

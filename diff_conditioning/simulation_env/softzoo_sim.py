@@ -145,26 +145,34 @@ class SoftzooSimulation(BaseCond):
     def calculate_loss(
         self, 
         x: torch.Tensor, t: torch.Tensor,
-        p_mean_var:Dict[str,torch.Tensor],
-        diffusion:GaussianDiffusion, 
+        # p_mean_var:Dict[str,torch.Tensor],
+        # diffusion:GaussianDiffusion, 
         **model_kwargs
     ) -> torch.Tensor:
         
-        if 'original_ts' in model_kwargs:
-            t = model_kwargs['original_ts']
+        # if 'original_ts' in model_kwargs:
+        #     t = model_kwargs['original_ts']
         
-        pred_xstart = diffusion._predict_xstart_from_eps(
-            x,t,
-            p_mean_var['eps']
-        )
-        B = pred_xstart.shape[0]
-        pos = pred_xstart[:B//2,:3]
+        # pred_xstart = diffusion._predict_xstart_from_eps(
+        #     x,t,
+        #     p_mean_var['eps']
+        # )
+        # B = pred_xstart.shape[0]
+        # pos = pred_xstart[:B//2,:3]
+        pos = x
         self.designer = GeneratedPointEPCD(
             lr = self.config.designer_lr,
             env = self.env,
             gripper_pos_tensor = pos,
             device = self.torch_device,
         )
+        print(self.designer.occupancy.shape,self.designer.occupancy.grad_fn)
+        self.designer.reset()
+        design_out = self.designer()
+        print({
+            k:(v.shape,v.requires_grad)
+            for k,v  in design_out.items()
+        })
         return torch.zeros((1,1))
     # endregion
     
@@ -245,5 +253,12 @@ class SoftzooSimulation(BaseCond):
         
 
 if __name__=='__main__':
+    import numpy as np
+    
     config = SoftzooSimulation.load_config('custom_cfg.yaml')
-    env = SoftzooSimulation(config,0.3,True)
+    sim = SoftzooSimulation(config,0.3,True)
+    
+    loaded_pcd = np.load('sample_generated_pcd.npz')
+    x = torch.from_numpy(loaded_pcd['coords']).detach().requires_grad_(True)
+
+    sim.calculate_loss(x,torch.tensor([0]))

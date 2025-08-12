@@ -56,8 +56,10 @@ def extract_part_pca_inner(points,lbls,return_part_colors=False,within_part_clus
     all_part_pc_pca = dict()
     all_part_pc_std = dict()
     
+    if len(lbls.shape)==1: lbls = lbls[:,None]
+    
     for i, unique_color in enumerate(unique_lbls):
-        mask = np.all(lbls == unique_color[None,:], axis=1)
+        mask = np.all(lbls == unique_color, axis=1)
         masked_points = points[mask]
         masked_points_std = points_std[mask]
         
