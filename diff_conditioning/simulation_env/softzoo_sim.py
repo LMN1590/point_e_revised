@@ -9,10 +9,13 @@ import os
 import shutil
 import json
 from typing import Dict
+from tqdm import tqdm
 
 from softzoo.configs.config_dataclass import FullConfig
 from softzoo.envs import ENV_CONFIGS_DIR
 from softzoo.utils.logger import Logger
+from softzoo.utils.general_utils import save_pcd_to_mesh
+from .utils.sim_utils import read_fixed_velocity
 
 from point_e.diffusion.gaussian_diffusion import GaussianDiffusion
 
@@ -22,11 +25,14 @@ from . import controllers as controller_module
 
 from .utils.path import CONFIG_DIR,DEFAULT_CFG_DIR
 from ..base_cond import BaseCond
+from .designer.generated_pointe import GeneratedPointEPCD
 
 class SoftzooSimulation(BaseCond):
     # region Initialization
     def __init__(self,config:FullConfig, grad_scale:float, calc_gradient:bool = False):
         super(SoftzooSimulation, self).__init__(grad_scale,calc_gradient)
+        self.config = config
+        self.torch_device = 'cuda' if config.non_taichi_device == 'torch_gpu' else 'cpu'
         
         random.seed(config.seed)
         np.random.seed(config.seed)
@@ -128,6 +134,14 @@ class SoftzooSimulation(BaseCond):
         # endregion 
     # endregion
     
+    # region Gradient Calc Wrapper
+    def calculate_gradient(self, x:torch.Tensor,t:torch.Tensor, **model_kwargs):
+        x = x.detach().requires_grad_(True)
+        with torch.enable_grad():
+            loss = self.calculate_loss(x,t,**model_kwargs)
+        # print(loss.requires_grad, loss.grad_fn)
+        self.loss_lst.append(loss)
+    
     def calculate_loss(
         self, 
         x: torch.Tensor, t: torch.Tensor,
@@ -145,7 +159,89 @@ class SoftzooSimulation(BaseCond):
         )
         B = pred_xstart.shape[0]
         pos = pred_xstart[:B//2,:3]
-        self.designer = 
+        self.designer = GeneratedPointEPCD(
+            lr = self.config.designer_lr,
+            env = self.env,
+            gripper_pos_tensor = pos,
+            device = self.torch_device,
+        )
+        return torch.zeros((1,1))
+    # endregion
+    
+    # # region Simulation
+    # def forward_sim(
+    #     self, it:int
+    # ):
+    #     self.designer.reset()
+    #     designer_out = self.designer()
+    #     design = dict()
+    #     for design_type in self.config.set_design_types:
+    #         if design_type == 'actuator_direction': assert getattr(self.designer,'has_actuator_direction',False)
+    #         design[design_type] = designer_out[design_type]
+            
+    #     obs = self.env.reset(design)
+    #     self.controller.reset()
+    #     ep_reward = 0.
+        
+    #     if self.config.optimize_designer and (it%self.config.render_every_iter==0):
+    #         if 'particle_based_representation' in str(self.env.design_space):
+    #             for design_type in self.config.optimize_design_types:
+    #                 design_fpath = os.path.join(design_dir, f'{design_type}_{it:04d}.pcd')
+    #                 design_pcd = self.designer.save_pcd(design_fpath, design, design_type)
+    #             save_pcd_to_mesh(os.path.join(design_dir, f'mesh_{it:04d}.ply'), design_pcd)
+    #         elif 'voxel_based_representation' in str(self.env.design_space):
+    #             for design_type in self.config.optimize_design_types:
+    #                 design_fpath = os.path.join(design_dir, f'{design_type}_{it:04d}.ply')
+    #                 self.designer.save_voxel_grid(design_fpath, design, design_type)
+    #         else:
+    #             raise NotImplementedError
+            
+    #     velocities_by_frame = read_fixed_velocity(self.config.fixed_v,self.config.n_frames)
+        
+    #     fixed_v = [0.,0.,0.]
+    #     cur_v_idx = 0
+        
+    #     for frame in tqdm(range(self.config.n_frames), desc=f'Forward #{it:04d}'):
+    #         if frame >= velocities_by_frame[cur_v_idx][0]:
+    #             fixed_v = velocities_by_frame[cur_v_idx][1]
+    #             cur_v_idx +=1
+    #         # if frame == 0:
+    #         #     env.sim.solver.set_gravity((0.,-9.81,0.))
+    #         # elif frame == 125:
+    #         #     env.sim.solver.set_gravity((0.,9.81,0.))
+            
+    #         current_s = self.env.sim.solver.current_s
+    #         current_s_local = self.env.sim.solver.get_cyclic_s(current_s)
+    #         act = self.controller(current_s, obs)
+    #         if self.config.action_space == 'particle_v':
+    #             self.env.design_space.add_to_v(current_s_local, act) # only add v to the first local substep since v accumulates
+    #             obs, reward, done, info = self.env.step(None,fixed_v)
+    #         elif self.config.action_space == 'actuator_v':
+    #             self.env.design_space.set_v_buffer(current_s, act)
+    #             self.env.design_space.add_v_with_buffer(current_s, current_s_local)
+    #             obs, reward, done, info = self.env.step(None,fixed_v)
+    #         else:
+    #             obs, reward, done, info = env.step(act,fixed_v)
+    #         ep_reward += reward
+
+    #         if self.env.has_renderer and (it % self.config.render_every_iter == 0):
+    #             if 'TrajectoryFollowingLoss' in args.loss_types: # plot trajectory
+    #                 env.renderer.scene.particles(traj, radius=0.003)
+
+    #             if hasattr(env.objective, 'render'):
+    #                 env.objective.render()
+
+    #             env.render()
+
+    #         if (it % args.save_every_iter == 0):
+    #             if args.optimize_designer or args.save_designer:
+    #                 designer.save_checkpoint(os.path.join(ckpt_dir_designer, f'iter_{it:04d}.ckpt'))
+    #             if args.optimize_controller or args.save_controller:
+    #                 controller.save_checkpoint(os.path.join(ckpt_dir_controller, f'iter_{it:04d}.ckpt'))
+
+    #         if done:
+    #             break
+    #     return ep_reward
         
 
 if __name__=='__main__':

@@ -8,7 +8,7 @@ from sklearn.decomposition import PCA
 from sklearn.cluster import KMeans
 from sklearn.metrics import pairwise_distances_argmin
 
-from typing import TYPE_CHECKING, Dict, List
+from typing import TYPE_CHECKING, Dict, List, Optional
 import matplotlib.pyplot as plt
 
 from .base import Base
@@ -39,6 +39,8 @@ class GeneratedPointEPCD(Base):
         
         complete_pos_tensor = torch.concat([gripper_pos_tensor,base_pos_tensor],dim=0)
         complete_labels = np.concatenate([gripper_labels,base_labels],axis=0)
+        unique_lbls = np.unique(complete_labels)
+        assert self.env.sim.solver.n_actuators == unique_lbls.shape[0], "The number of actuators must be equal to the number of generated labels. Probllem in configuration files"
         # endregion
         
         # region Calculate Actuator Direction
@@ -70,13 +72,27 @@ class GeneratedPointEPCD(Base):
         complete_pos_tensor_calibrated = calibrate_points(complete_pos_tensor)
         y_offset = coords_min[1] - complete_pos_tensor_calibrated.min(0)[1] # The supposedly distance between the lowest point of the point cloud and the bouding box, to ensure it is at the bottom.
         
-        pairwise_dist = torch.cdist(complete_pos_tensor_calibrated,coords) # generated_coords(m), sim_coords(n)
-        p_ji = torch.exp(-(pairwise_dist**2) / (2 * sigma**2))  # (m, n) # Smooth per-point contribution (Gaussian kernel)
-        self.occupancy = 1 - torch.prod(1 - p_ji, dim=1)  # (m,) # Soft OR across points → final occupancy per voxel
+        pairwise_dist = torch.cdist(coords,complete_pos_tensor_calibrated) # , sim_coords(n), generated_coords(m)
+        p_ji = torch.exp(-(pairwise_dist**2) / (2 * sigma**2))  # (n, m) # Smooth per-point contribution (Gaussian kernel)
+        self.occupancy = 1 - torch.prod(1 - p_ji, dim=1)  # (n,) # Soft OR across points → final occupancy per voxel
         # endregion
         
         # region Cluster Sim Coords
+        passive_lbl = 0
+        self.actuator = torch.zeros((self.env.sim.solver.n_actuators, coords.shape[0])) #(n_act,n)
+        self.is_passive = torch.zeros((coords.shape[0])) #(n)
         
+        coords_lbls_prob = torch.zeros((self.env.sim.solver.n_actuators,coords.shape[0]))
+        for lbl in unique_lbls:
+            coords_cur_lbls_prob = p_ji[:,complete_labels==lbl]
+            coords_lbls_prob[:,lbl] = 1 - torch.prod(1-coords_cur_lbls_prob,dim=1)
+        coords_cluster = coords_lbls_prob.argmax(dim=1)
+        for lbl in unique_lbls:
+            if lbl==passive_lbl: self.is_passive[coords_cluster==lbl] = 1.
+            else: self.actuator[lbl,coords_cluster==lbl] = 1.
+        
+        self.device = torch.device(device)
+        self.to(self.device)
         
     def calculate_base_location(self,gripper_pos_np:np.ndarray):
         # Label 0 is reserved for the base, where no velocity is allowed to propagate to hold the gripper up.
@@ -92,9 +108,6 @@ class GeneratedPointEPCD(Base):
         base_labels = [0]*base_points.shape[0]
         
         return torch.from_numpy(calibrated_base_pts),np.array(base_labels)
-    
-    
-    
     
     # region Muscle Label Generation
     def get_muscle_label(
@@ -185,7 +198,38 @@ class GeneratedPointEPCD(Base):
         center2 = cluster_center + local_up * (p2 - proj.mean())
         return [center1,center2]
     # endregion
+
+    @property
+    def has_actuator_direction(self):
+        return True
     
+    def reset(self):
+        self.out_cache:Dict[str,Optional[torch.Tensor]] = dict(
+            geometry=None, 
+            softness=None, 
+            actuator=None,
+            actuator_direction=None,
+            is_passive_fixed = None
+        )
+    
+    def forward(self,inp=None):
+        active_geometry = self.occupancy
+        passive_geometry = self.occupancy * self.passive_geometry_mul # NOTE: the same as active
+        geometry = torch.where(self.is_passive==1., passive_geometry, active_geometry)
+        
+        active_softness = torch.ones_like(self.occupancy)
+        passive_softness = torch.ones_like(self.occupancy) * self.passive_softness_mul # NOTE: the same as active
+        softness = torch.where(self.is_passive==1., passive_softness, active_softness)
+        
+        self.out_cache['geometry'] = geometry
+        self.out_cache['softness'] = softness
+        self.out_cache['actuator'] = self.actuator
+        self.out_cache['actuator_direction'] = self.actuator_directions
+        self.out_cache['is_passive_fixed'] = self.is_passive.to(torch.float32)
+
+        # NOTE: must use clone here otherwise tensor may be modified in-place in sim
+        design = {k: v.clone() for k, v in self.out_cache.items()}
+        return design
     
     
 # region Utilities
