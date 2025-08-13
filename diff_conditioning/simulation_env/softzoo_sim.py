@@ -8,7 +8,7 @@ from yaml import safe_load
 import os
 import shutil
 import json
-from typing import Dict
+from typing import Dict, List
 from tqdm import tqdm
 
 from softzoo.configs.config_dataclass import FullConfig
@@ -26,6 +26,7 @@ from . import controllers as controller_module
 from .utils.path import CONFIG_DIR,DEFAULT_CFG_DIR
 from ..base_cond import BaseCond
 from .designer.generated_pointe import GeneratedPointEPCD
+from .designer.base import Base as DesignerBase
 
 class SoftzooSimulation(BaseCond):
     # region Initialization
@@ -46,19 +47,19 @@ class SoftzooSimulation(BaseCond):
         
         self._init_sim(config)
         
-        post_substep_grad_fn = []
+        self.post_substep_grad_fn = []
         if config.action_space == 'actuator_v':
             # only suppport particle-based representation for now
             self.env.design_space.instantiate_v_buffer()
-            post_substep_grad_fn.append(self.env.design_space.add_v_with_buffer.grad)
+            self.post_substep_grad_fn.append(self.env.design_space.add_v_with_buffer.grad)
             
-        traj = None
+        self.traj = None
         if 'TrajectoryFollowingLoss' in config.loss_types:
             traj_len = int(config.goal[-1])
-            traj = ti.Vector.field(3, self.env.renderer.f_dtype, shape=(traj_len))
+            self.traj = ti.Vector.field(3, self.env.renderer.f_dtype, shape=(traj_len))
             traj_loss = self.loss_set.losses[config.loss_types.index('TrajectoryFollowingLoss')]
             traj_loss.reset()
-            traj.from_numpy(traj_loss.data['traj'].to_numpy().astype(self.env.renderer.f_dtype_np)[:traj_len])
+            self.traj.from_numpy(traj_loss.data['traj'].to_numpy().astype(self.env.renderer.f_dtype_np)[:traj_len])
             
         self._init_checkpointing(config)
         
@@ -73,7 +74,6 @@ class SoftzooSimulation(BaseCond):
 
         self.loss_set.compute_loss = time_fn(self.loss_set.compute_loss)
         self.controller.update = time_fn(self.controller.update)
-        # self.designer.update = time_fn(self.designer.update)
         
         self.data_for_plots = dict(reward=[], loss=[])
 
@@ -112,19 +112,19 @@ class SoftzooSimulation(BaseCond):
         # region Checkpointing
         ckpt_root_dir = os.path.join(config.out_dir, 'ckpt')
         os.makedirs(ckpt_root_dir, exist_ok=True)
-        design_dir = None
-        ckpt_dir_designer = None
-        ckpt_dir_controller = None
+        self.design_dir = None
+        self.ckpt_dir_designer = None
+        self.ckpt_dir_controller = None
         if config.optimize_designer or config.save_designer:
-            design_dir = os.path.join(config.out_dir, 'design')
-            os.makedirs(design_dir, exist_ok=True)
+            self.design_dir = os.path.join(config.out_dir, 'design')
+            os.makedirs(self.design_dir, exist_ok=True)
 
-            ckpt_dir_designer = os.path.join(ckpt_root_dir, 'designer')
-            os.makedirs(ckpt_dir_designer, exist_ok=True)
+            self.ckpt_dir_designer = os.path.join(ckpt_root_dir, 'designer')
+            os.makedirs(self.ckpt_dir_designer, exist_ok=True)
 
         if config.optimize_controller or config.save_controller:
-            ckpt_dir_controller = os.path.join(ckpt_root_dir, 'controller')
-            os.makedirs(ckpt_dir_controller, exist_ok=True)
+            self.ckpt_dir_controller = os.path.join(ckpt_root_dir, 'controller')
+            os.makedirs(self.ckpt_dir_controller, exist_ok=True)
 
         with open(os.path.join(ckpt_root_dir, 'args.json'), 'w') as fp:
             json.dump(vars(config), fp, indent=4, sort_keys=True)
@@ -159,93 +159,125 @@ class SoftzooSimulation(BaseCond):
         # )
         # B = pred_xstart.shape[0]
         # pos = pred_xstart[:B//2,:3]
+        B=2
         pos = x
-        self.designer = GeneratedPointEPCD(
-            lr = self.config.designer_lr,
-            env = self.env,
-            gripper_pos_tensor = pos,
-            device = self.torch_device,
-        )
-        self.designer.reset()
-        design_out = self.designer()
+        for i,t_sample in zip(range(B//2),t.tolist()):
+            designer = GeneratedPointEPCD(
+                lr = self.config.designer_lr,
+                env = self.env,
+                gripper_pos_tensor = pos[i],
+                device = self.torch_device,
+            )
+            
+            ep_reward = self.forward_sim(t_sample,designer)
+            all_loss,grad,grad_name_control = self.backward_sim()
+            print(ep_reward)
+            print(grad)
         return torch.zeros((1,1))
     # endregion
     
-    # # region Simulation
-    # def forward_sim(
-    #     self, it:int
-    # ):
-    #     self.designer.reset()
-    #     designer_out = self.designer()
-    #     design = dict()
-    #     for design_type in self.config.set_design_types:
-    #         if design_type == 'actuator_direction': assert getattr(self.designer,'has_actuator_direction',False)
-    #         design[design_type] = designer_out[design_type]
+    # region Simulation
+    def forward_sim(
+        self, it:int, designer:DesignerBase
+    ):
+        designer.reset()
+        designer_out = designer()
+        design = dict()
+        for design_type in self.config.set_design_types:
+            if design_type == 'actuator_direction': assert getattr(designer,'has_actuator_direction',False)
+            design[design_type] = designer_out[design_type]
             
-    #     obs = self.env.reset(design)
-    #     self.controller.reset()
-    #     ep_reward = 0.
+        obs = self.env.reset(design)
+        self.controller.reset()
+        ep_reward = 0.
         
-    #     if self.config.optimize_designer and (it%self.config.render_every_iter==0):
-    #         if 'particle_based_representation' in str(self.env.design_space):
-    #             for design_type in self.config.optimize_design_types:
-    #                 design_fpath = os.path.join(design_dir, f'{design_type}_{it:04d}.pcd')
-    #                 design_pcd = self.designer.save_pcd(design_fpath, design, design_type)
-    #             save_pcd_to_mesh(os.path.join(design_dir, f'mesh_{it:04d}.ply'), design_pcd)
-    #         elif 'voxel_based_representation' in str(self.env.design_space):
-    #             for design_type in self.config.optimize_design_types:
-    #                 design_fpath = os.path.join(design_dir, f'{design_type}_{it:04d}.ply')
-    #                 self.designer.save_voxel_grid(design_fpath, design, design_type)
-    #         else:
-    #             raise NotImplementedError
+        if self.config.optimize_designer and (it%self.config.render_every_iter==0):
+            if 'particle_based_representation' in str(self.env.design_space):
+                for design_type in self.config.optimize_design_types:
+                    design_fpath = os.path.join(self.design_dir, f'{design_type}_{it:04d}.pcd')
+                    design_pcd = designer.save_pcd(design_fpath, design, design_type)
+                save_pcd_to_mesh(os.path.join(self.design_dir, f'mesh_{it:04d}.ply'), design_pcd)
+            elif 'voxel_based_representation' in str(self.env.design_space):
+                for design_type in self.config.optimize_design_types:
+                    design_fpath = os.path.join(self.design_dir, f'{design_type}_{it:04d}.ply')
+                    designer.save_voxel_grid(design_fpath, design, design_type)
+            else:
+                raise NotImplementedError
             
-    #     velocities_by_frame = read_fixed_velocity(self.config.fixed_v,self.config.n_frames)
+        velocities_by_frame = read_fixed_velocity(self.config.fixed_v,self.config.n_frames)
         
-    #     fixed_v = [0.,0.,0.]
-    #     cur_v_idx = 0
+        fixed_v = [0.,0.,0.]
+        cur_v_idx = 0
         
-    #     for frame in tqdm(range(self.config.n_frames), desc=f'Forward #{it:04d}'):
-    #         if frame >= velocities_by_frame[cur_v_idx][0]:
-    #             fixed_v = velocities_by_frame[cur_v_idx][1]
-    #             cur_v_idx +=1
-    #         # if frame == 0:
-    #         #     env.sim.solver.set_gravity((0.,-9.81,0.))
-    #         # elif frame == 125:
-    #         #     env.sim.solver.set_gravity((0.,9.81,0.))
+        for frame in tqdm(range(self.config.n_frames), desc=f'Forward #{it:04d}'):
+            if frame >= velocities_by_frame[cur_v_idx][0]:
+                fixed_v = velocities_by_frame[cur_v_idx][1]
+                cur_v_idx +=1
+            # if frame == 0:
+            #     env.sim.solver.set_gravity((0.,-9.81,0.))
+            # elif frame == 125:
+            #     env.sim.solver.set_gravity((0.,9.81,0.))
             
-    #         current_s = self.env.sim.solver.current_s
-    #         current_s_local = self.env.sim.solver.get_cyclic_s(current_s)
-    #         act = self.controller(current_s, obs)
-    #         if self.config.action_space == 'particle_v':
-    #             self.env.design_space.add_to_v(current_s_local, act) # only add v to the first local substep since v accumulates
-    #             obs, reward, done, info = self.env.step(None,fixed_v)
-    #         elif self.config.action_space == 'actuator_v':
-    #             self.env.design_space.set_v_buffer(current_s, act)
-    #             self.env.design_space.add_v_with_buffer(current_s, current_s_local)
-    #             obs, reward, done, info = self.env.step(None,fixed_v)
-    #         else:
-    #             obs, reward, done, info = env.step(act,fixed_v)
-    #         ep_reward += reward
+            current_s = self.env.sim.solver.current_s
+            current_s_local = self.env.sim.solver.get_cyclic_s(current_s)
+            act = self.controller(current_s, obs)
+            if self.config.action_space == 'particle_v':
+                self.env.design_space.add_to_v(current_s_local, act) # only add v to the first local substep since v accumulates
+                obs, reward, done, info = self.env.step(None,fixed_v)
+            elif self.config.action_space == 'actuator_v':
+                self.env.design_space.set_v_buffer(current_s, act)
+                self.env.design_space.add_v_with_buffer(current_s, current_s_local)
+                obs, reward, done, info = self.env.step(None,fixed_v)
+            else:
+                obs, reward, done, info = self.env.step(act,fixed_v)
+            ep_reward += reward
 
-    #         if self.env.has_renderer and (it % self.config.render_every_iter == 0):
-    #             if 'TrajectoryFollowingLoss' in args.loss_types: # plot trajectory
-    #                 env.renderer.scene.particles(traj, radius=0.003)
+            if self.env.has_renderer and (it % self.config.render_every_iter == 0):
+                if 'TrajectoryFollowingLoss' in self.config.loss_types: # plot trajectory
+                    self.env.renderer.scene.particles(self.traj, radius=0.003)
 
-    #             if hasattr(env.objective, 'render'):
-    #                 env.objective.render()
+                if hasattr(self.env.objective, 'render'):
+                    self.env.objective.render()
 
-    #             env.render()
+                self.env.render()
 
-    #         if (it % args.save_every_iter == 0):
-    #             if args.optimize_designer or args.save_designer:
-    #                 designer.save_checkpoint(os.path.join(ckpt_dir_designer, f'iter_{it:04d}.ckpt'))
-    #             if args.optimize_controller or args.save_controller:
-    #                 controller.save_checkpoint(os.path.join(ckpt_dir_controller, f'iter_{it:04d}.ckpt'))
+            if (it % self.config.save_every_iter == 0):
+                if self.config.optimize_designer or self.config.save_designer:
+                    designer.save_checkpoint(os.path.join(self.ckpt_dir_designer, f'iter_{it:04d}.ckpt'))
+                if self.config.optimize_controller or self.config.save_controller:
+                    self.controller.save_checkpoint(os.path.join(self.ckpt_dir_controller, f'iter_{it:04d}.ckpt'))
 
-    #         if done:
-    #             break
-    #     return ep_reward
-        
+            if done:
+                break
+        return ep_reward
+    def backward_sim(self):
+        loss_reset_kwargs = {k: {} for k in self.config.loss_types}
+        grad_names:Dict[int,List] = dict()
+        if self.config.action_space == 'particle_v':
+            grad_name_control = 'self.env.sim.solver.v'
+        elif self.config.action_space == 'actuator_v':
+            grad_name_control = 'self.env.design_space.v_buffer'
+        else:
+            grad_name_control = 'self.env.sim.solver.act_buffer'
+        if self.config.optimize_controller:
+            for s in self.controller.all_s:
+                if s not in grad_names.keys():
+                    grad_names[s] = []
+                grad_names[s].append(grad_name_control)
+        if self.config.optimize_designer:
+            s = None
+            if s not in grad_names.keys():
+                grad_names[s] = []
+            for dsr_buffer_name in self.config.optimize_design_types:
+                grad_names[s].append(f'self.env.design_space.buffer.{dsr_buffer_name}')
+        try:
+            all_loss, grad = self.loss_set.compute_loss(loss_reset_kwargs, self.post_substep_grad_fn, compute_grad=len(grad_names) > 0, grad_names=grad_names)
+        except Exception as e: # HACK
+            raise e
+            all_loss = np.zeros([1])
+            grad = dict()
+        return all_loss,grad,grad_name_control
+    # endregion 
 
 if __name__=='__main__':
     import numpy as np

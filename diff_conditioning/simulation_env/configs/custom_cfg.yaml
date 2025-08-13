@@ -1,7 +1,7 @@
 out_dir: ./local/gripping_v0/gripping_env-100
 env_config_file: gripping_env.yaml
-save_every_iter: 15
-render_every_iter: 15
+save_every_iter: 1
+render_every_iter: 1
 n_iters: 301
 n_frames: 200
 

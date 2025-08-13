@@ -11,6 +11,8 @@ class BaseCond:
         self.grad_lst = []
     
     def calculate_gradient(self, x:torch.Tensor,t:torch.Tensor, **model_kwargs):
+        # x is shaped (B*2, C, N)
+        
         x = x.detach().requires_grad_(True)
         with torch.enable_grad():
             loss = self.calculate_loss(x,t,**model_kwargs)
