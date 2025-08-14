@@ -158,6 +158,7 @@ class SoftzooSimulation(BaseCond):
         #     p_mean_var['eps']
         # )
         pred_xstart = x
+        pred_xstart.retain_grad()
         B = pred_xstart.shape[0]
         pos = pred_xstart[:B//2,:3]
         for i,t_sample in zip(range(B//2),t.tolist()):
@@ -167,15 +168,14 @@ class SoftzooSimulation(BaseCond):
                 gripper_pos_tensor = pos[i].permute(1,0),
                 device = self.torch_device,
             )
-            designer.reset()
-            designer_out = designer()
-            print({
-                k:(v.shape,v.requires_grad,v.sum()) for k,v in designer_out.items()
-            })
-            # ep_reward = self.forward_sim(t_sample,designer)
-            # all_loss,grad,grad_name_control = self.backward_sim()
-            # print(ep_reward)
-            # print(grad)
+            ep_reward = self.forward_sim(t_sample,designer)
+            all_loss,grad,grad_name_control = self.backward_sim()
+            print(ep_reward)
+            print(grad[None]['self.env.design_space.buffer.geometry'].sum())
+            designer.out_cache['geometry'].backward(gradient=grad[None]['self.env.design_space.buffer.geometry'])
+            print('Current iter ', i)
+            print(pred_xstart.grad[i])
+            print(pred_xstart.grad.shape)
         return torch.zeros((1,1))
     # endregion
     
@@ -189,7 +189,6 @@ class SoftzooSimulation(BaseCond):
         for design_type in self.config.set_design_types:
             if design_type == 'actuator_direction': assert getattr(designer,'has_actuator_direction',False)
             design[design_type] = designer_out[design_type]
-            
         obs = self.env.reset(design)
         self.controller.reset()
         ep_reward = 0.
@@ -244,11 +243,11 @@ class SoftzooSimulation(BaseCond):
 
                 self.env.render()
 
-            if (it % self.config.save_every_iter == 0):
-                if self.config.optimize_designer or self.config.save_designer:
-                    designer.save_checkpoint(os.path.join(self.ckpt_dir_designer, f'iter_{it:04d}.ckpt'))
-                if self.config.optimize_controller or self.config.save_controller:
-                    self.controller.save_checkpoint(os.path.join(self.ckpt_dir_controller, f'iter_{it:04d}.ckpt'))
+            # if (it % self.config.save_every_iter == 0):
+            #     if self.config.optimize_designer or self.config.save_designer:
+            #         designer.save_checkpoint(os.path.join(self.ckpt_dir_designer, f'iter_{it:04d}.ckpt'))
+            #     if self.config.optimize_controller or self.config.save_controller:
+            #         self.controller.save_checkpoint(os.path.join(self.ckpt_dir_controller, f'iter_{it:04d}.ckpt'))
 
             if done:
                 break
@@ -284,13 +283,19 @@ class SoftzooSimulation(BaseCond):
 
 if __name__=='__main__':
     import numpy as np
+    import open3d as o3d
     
     config = SoftzooSimulation.load_config('custom_cfg.yaml')
     sim = SoftzooSimulation(config,0.3,True)
     
     loaded_pcd = np.load('sample_generated_pcd.npz')
     x = torch.from_numpy(loaded_pcd['coords']).detach().requires_grad_(True)
-    x = x.permute(1,0)
-    x = torch.stack([x,x],dim=0)
+    # pcd = o3d.io.read_point_cloud('hand.pcd')
+    # x=torch.from_numpy(np.array(pcd.points)).requires_grad_(True)
     
-    sim.calculate_loss(x,torch.tensor([0]))
+    x = x.permute(1,0)
+    x = torch.stack([x,x,x,x,x,x],dim=0)
+    
+    # print(x.shape)
+    
+    sim.calculate_loss(x,torch.tensor([0,0,0]))

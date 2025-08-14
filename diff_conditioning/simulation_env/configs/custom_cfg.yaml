@@ -16,3 +16,7 @@ seed: 100
 torch_seed: 100
 static_as_fixed: True
 device_memory_fraction: 0.75
+
+optimize_designer: True
+optimize_design_types: ['geometry']
+designer_lr: 0.1

@@ -12,7 +12,7 @@ SIMULATOR:
   use_dynamic_field: False
   checkpoint_cache_device: torch_cpu
   base_active_materials: []
-  max_actuation: 17
+  max_actuation: 13
 ENVIRONMENT:
   objective: move_forward
   objective_config:
@@ -47,13 +47,13 @@ ENVIRONMENT:
   observation_space: [time, com]
   design_space: pbr
   design_space_config:
-    n_actuators: 17
+    n_actuators: 13
     initial_principle_direction: [1., 0., 0.]
     p_rho_lower_bound_mul: 0.1
     base_shape:
       type: Primitive.Box
       size: [0.1, 0.05, 0.1]
-      sample_density: 48
+      sample_density: 64
       initial_position: [0.55, 0.2, 0.4]
       initial_velocity: [0., 0., 0.]
       material: DiffAquaMuscle

@@ -8,12 +8,13 @@ from sklearn.decomposition import PCA
 from sklearn.cluster import KMeans
 from sklearn.metrics import pairwise_distances_argmin
 
-from typing import TYPE_CHECKING, Dict, List, Optional
+from typing import TYPE_CHECKING, Dict, List, Optional, Callable
 import matplotlib.pyplot as plt
 
 from .base import Base
-from softzoo.utils.general_utils import extract_part_pca_inner,row_permutation
+from softzoo.utils.general_utils import extract_part_pca_inner,row_permutation,extract_part_pca
 from softzoo.utils.computation_utils import directions_to_spherical
+from softzoo.utils.visualization_utils import get_arrow
 
 if TYPE_CHECKING:
     from softzoo.envs.base_env import BaseEnv
@@ -22,7 +23,7 @@ class GeneratedPointEPCD(Base):
     def __init__(
         self,lr,
         env:'BaseEnv',
-        gripper_pos_tensor:torch.Tensor, n_voxels:int=20, sigma:float = 1e-3,
+        gripper_pos_tensor:torch.Tensor, n_voxels:int=20, sigma:float = 7e-4,
         passive_geometry_mul:int=1,passive_softness_mul:int=1,
         device:str='cpu',
         **kwargs
@@ -36,8 +37,9 @@ class GeneratedPointEPCD(Base):
         gripper_labels = self.get_muscle_label(gripper_pos_np)
         base_pos_tensor, base_labels = self.calculate_base_location(gripper_pos_np)
         
-        complete_pos_tensor = torch.concat([gripper_pos_tensor,base_pos_tensor],dim=0).float()
-        complete_labels = np.concatenate([gripper_labels,base_labels],axis=0)
+        complete_pos_tensor = torch.concat([base_pos_tensor,gripper_pos_tensor],dim=0).float()
+        complete_labels = np.concatenate([base_labels,gripper_labels],axis=0)
+        # visualize_point_cloud(complete_pos_tensor,complete_labels)
         unique_lbls = np.unique(complete_labels)
         assert self.env.sim.solver.n_actuators == unique_lbls.shape[0], "The number of actuators must be equal to the number of generated labels. Probllem in configuration files"
         # endregion
@@ -57,7 +59,6 @@ class GeneratedPointEPCD(Base):
         coords = self.env.design_space.get_x(s=0).float()
         if isinstance(coords, np.ndarray):
             coords = torch.from_numpy(coords).float()
-            
         coords_min, coords_mean, coords_max = coords.min(0).values, coords.mean(0), coords.max(0).values
         points_min, points_mean, points_max = complete_pos_tensor.min(0).values, complete_pos_tensor.mean(0), complete_pos_tensor.max(0).values
         def calibrate_points(_pts:torch.Tensor, y_offset=0.):
@@ -69,6 +70,8 @@ class GeneratedPointEPCD(Base):
             _pts_calibrated[:,1] = _pts_calibrated[:,1] + y_offset # align lower bound in y-axis
             return _pts_calibrated
         complete_pos_tensor_calibrated = calibrate_points(complete_pos_tensor)
+        y_offset = coords_min[1] - complete_pos_tensor_calibrated.min(0).values[1] # The supposedly 
+        complete_pos_tensor_calibrated = calibrate_points(complete_pos_tensor,y_offset=y_offset)
         
         pairwise_dist = torch.cdist(coords,complete_pos_tensor_calibrated) # , sim_coords(n), generated_coords(m)
         p_ji = torch.exp(-(pairwise_dist**2) / (2 * sigma**2))  # (n, m) # Smooth per-point contribution (Gaussian kernel)
@@ -83,13 +86,14 @@ class GeneratedPointEPCD(Base):
         coords_lbls_prob = torch.zeros((coords.shape[0],self.env.sim.solver.n_actuators))
         for lbl in unique_lbls:
             coords_cur_lbls_prob = p_ji[:,complete_labels==lbl]
-            coords_lbls_prob[:,lbl] = 1 - torch.prod(1-coords_cur_lbls_prob,dim=1)
+            occupancy_cluster = (1 - torch.prod(1-coords_cur_lbls_prob,dim=1)) #*(1. if lbl!=passive_lbl else 1e4)
+            coords_lbls_prob[:,lbl] = occupancy_cluster
         coords_cluster = coords_lbls_prob.argmax(dim=1)
         for lbl in unique_lbls:
             if lbl==passive_lbl: self.is_passive[coords_cluster==lbl] = 1.
             else: self.actuator[lbl,coords_cluster==lbl] = 1.
         
-    
+        # print(self.is_passive[(self.is_passive + self.occupancy)>1.].sum())
         self.device = torch.device(device)
         self.to(self.device)
         
@@ -100,10 +104,18 @@ class GeneratedPointEPCD(Base):
         base_pcd = o3d.io.read_point_cloud('diff_conditioning/simulation_env/asset/fixed_base.pcd')
         base_points = np.asarray(base_pcd.points)
         
-        base_coords_min, base_coords_max,base_coords_mean = base_points.min(0),base_points.max(0),base_points.mean(0)
-        gripper_points_min, gripper_points_max,gripper_points_mean = gripper_pos_np.min(0),gripper_pos_np.max(0),gripper_pos_np.mean(0)
-        
-        calibrated_base_pts = calibrate_points(base_points, mean = find_mid_lowest_pt(gripper_pos_np,radius=0.1), scale=0.2*(gripper_points_max - gripper_points_min).sum() / (base_coords_max - base_coords_min).sum())
+        base_coords_min, base_coords_max = base_points.min(0),base_points.max(0)
+        gripper_points_min, gripper_points_max = gripper_pos_np.min(0),gripper_pos_np.max(0)
+        base_extent = base_coords_max - base_coords_min
+        gripper_extent = gripper_points_max - gripper_points_min
+        gripper_base_scale = gripper_extent/base_extent
+    
+        calibrated_base_pts = calibrate_points(
+            base_points, 
+            mean = find_mid_lowest_pt(gripper_pos_np), 
+            scale=0.02*gripper_base_scale,
+        )
+    
         base_labels = [0]*base_points.shape[0]
         
         return torch.from_numpy(calibrated_base_pts),np.array(base_labels)
@@ -113,14 +125,15 @@ class GeneratedPointEPCD(Base):
         self,
         gripper_pos_np:np.ndarray,
         normalizing:bool=False,pca_components_index:List[int] = [],
-        muscle_count:int = 16, 
-        target_center:List[float] = [0.,1.,0.]
+        muscle_count:int = 12, 
+        target_center:List[float] = [0.,1.,0.],
+        feature_selector:Callable[[np.ndarray],np.ndarray] = lambda x:x[:,[0,2]]
     ):
         assert muscle_count%2==0, "Muscle count must be an even number"
         
         points = gripper_pos_np
         points_std = StandardScaler().fit_transform(points)
-        coarse_labels = self._generate_coarse_muscle(points_std,normalizing,pca_components_index,muscle_count)
+        coarse_labels = self._generate_coarse_muscle(points_std,normalizing,pca_components_index,muscle_count,feature_selector)
         
         max_label = coarse_labels.max()
         target_center_np = np.array(target_center)
@@ -143,10 +156,14 @@ class GeneratedPointEPCD(Base):
     def _generate_coarse_muscle(
         self,points_std: np.ndarray,
         normalizing:bool=False,pca_components_index:List[int] = [],
-        muscle_count:int = 16
+        muscle_count:int = 16,
+        feature_selector:Callable[[np.ndarray],np.ndarray] = lambda x:x
     ):  
+        points_std = feature_selector(points_std)
+        
         if normalizing:
-            pca = PCA(n_components=3)
+            n_components = min(3,points_std.shape[1])
+            pca = PCA(n_components=n_components)
             feats = pca.fit_transform(points_std)
         else:
             feats = points_std
@@ -250,4 +267,30 @@ def calibrate_points(points:np.ndarray,mean:np.ndarray,flipped_x:bool = False,fl
     if flipped_z: norm_points[:,2] = -norm_points[:,2]
     points_calibrated = norm_points + mean
     return points_calibrated
+
+
+def visualize_point_cloud(pcd_coords,labels):
+    pcd = o3d.geometry.PointCloud()
+    pcd.points = o3d.utility.Vector3dVector(pcd_coords.detach().cpu().numpy())
+    
+    disc_colors = np.array(plt.get_cmap('tab20').colors + plt.get_cmap('tab20b').colors + plt.get_cmap('tab20c').colors)
+    disc_colors = np.concatenate([np.array([[0,0,0]]),disc_colors],axis=0)
+    colors = disc_colors[labels]
+    colors[labels < 0] = 0
+    pcd.colors = o3d.utility.Vector3dVector(colors[:, :3])
+    
+    all_part_pca_components, all_part_pca_singular_values, all_part_pc, color_debug = extract_part_pca(pcd, return_part_colors=True)
+    line_meshes = []
+    for i, (k, part_pca_components) in enumerate(all_part_pca_components.items()):
+        start = all_part_pc[k].mean(0)
+        end1 = start + part_pca_components[0] * all_part_pc[k].std(0)[0]
+        end2 = start + part_pca_components[1] * all_part_pc[k].std(0)[1]
+        end3 = start + part_pca_components[2] * all_part_pc[k].std(0)[2]
+        line_colors = [[1, 0, 0], [0, 1, 0], [0, 0, 1],]
+        for end_i, end in enumerate([end1, end2, end3]):
+            line_mesh = get_arrow(start, end)
+            line_mesh.paint_uniform_color(line_colors[end_i])
+            line_meshes.append(line_mesh)
+
+    o3d.visualization.draw_geometries([pcd] + line_meshes)
 # endregion
