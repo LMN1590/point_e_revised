@@ -22,7 +22,7 @@ class GeneratedPointEPCD(Base):
     def __init__(
         self,lr,
         env:'BaseEnv',
-        gripper_pos_tensor:torch.Tensor, n_voxels:int=20, sigma:float = 0.1,
+        gripper_pos_tensor:torch.Tensor, n_voxels:int=20, sigma:float = 1e-3,
         passive_geometry_mul:int=1,passive_softness_mul:int=1,
         device:str='cpu',
         **kwargs
@@ -32,7 +32,7 @@ class GeneratedPointEPCD(Base):
         self.passive_softness_mul = passive_softness_mul
         
         # region Preprocess and Attach Base
-        gripper_pos_np = gripper_pos_tensor.detach().cpu().numpy()
+        gripper_pos_np = gripper_pos_tensor.detach().cpu().numpy() # [N,C]
         gripper_labels = self.get_muscle_label(gripper_pos_np)
         base_pos_tensor, base_labels = self.calculate_base_location(gripper_pos_np)
         
@@ -70,7 +70,6 @@ class GeneratedPointEPCD(Base):
             return _pts_calibrated
         complete_pos_tensor_calibrated = calibrate_points(complete_pos_tensor)
         
-        breakpoint()
         pairwise_dist = torch.cdist(coords,complete_pos_tensor_calibrated) # , sim_coords(n), generated_coords(m)
         p_ji = torch.exp(-(pairwise_dist**2) / (2 * sigma**2))  # (n, m) # Smooth per-point contribution (Gaussian kernel)
         self.occupancy = 1 - torch.prod(1 - p_ji, dim=1)  # (n,) # Soft OR across points → final occupancy per voxel
@@ -104,7 +103,7 @@ class GeneratedPointEPCD(Base):
         base_coords_min, base_coords_max,base_coords_mean = base_points.min(0),base_points.max(0),base_points.mean(0)
         gripper_points_min, gripper_points_max,gripper_points_mean = gripper_pos_np.min(0),gripper_pos_np.max(0),gripper_pos_np.mean(0)
         
-        calibrated_base_pts = calibrate_points(base_points, mean = find_mid_lowest_pt(gripper_pos_np), scale=0.05*(gripper_points_max - gripper_points_min).sum() / (base_coords_max - base_coords_min).sum())
+        calibrated_base_pts = calibrate_points(base_points, mean = find_mid_lowest_pt(gripper_pos_np,radius=0.1), scale=0.2*(gripper_points_max - gripper_points_min).sum() / (base_coords_max - base_coords_min).sum())
         base_labels = [0]*base_points.shape[0]
         
         return torch.from_numpy(calibrated_base_pts),np.array(base_labels)

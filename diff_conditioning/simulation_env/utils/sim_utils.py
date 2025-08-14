@@ -4,7 +4,7 @@ from typing import Dict,List
 
 
 def read_fixed_velocity(velocity_file:str,max_frames:int):
-    velocity_path = os.path.join('./fixed_velocity',velocity_file)
+    velocity_path = os.path.join('./diff_conditioning/simulation_env/fixed_velocity',velocity_file)
     with open(velocity_path) as f:
         velocity:Dict[str,List[float]] = json.load(f)
     sorted_velocity_by_frame = sorted(velocity.items(),key=lambda x:int(x[0]))

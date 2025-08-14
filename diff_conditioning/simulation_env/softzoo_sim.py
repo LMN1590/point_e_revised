@@ -157,22 +157,25 @@ class SoftzooSimulation(BaseCond):
         #     x,t,
         #     p_mean_var['eps']
         # )
-        # B = pred_xstart.shape[0]
-        # pos = pred_xstart[:B//2,:3]
-        B=2
-        pos = x
+        pred_xstart = x
+        B = pred_xstart.shape[0]
+        pos = pred_xstart[:B//2,:3]
         for i,t_sample in zip(range(B//2),t.tolist()):
             designer = GeneratedPointEPCD(
                 lr = self.config.designer_lr,
                 env = self.env,
-                gripper_pos_tensor = pos[i],
+                gripper_pos_tensor = pos[i].permute(1,0),
                 device = self.torch_device,
             )
-            
-            ep_reward = self.forward_sim(t_sample,designer)
-            all_loss,grad,grad_name_control = self.backward_sim()
-            print(ep_reward)
-            print(grad)
+            designer.reset()
+            designer_out = designer()
+            print({
+                k:(v.shape,v.requires_grad,v.sum()) for k,v in designer_out.items()
+            })
+            # ep_reward = self.forward_sim(t_sample,designer)
+            # all_loss,grad,grad_name_control = self.backward_sim()
+            # print(ep_reward)
+            # print(grad)
         return torch.zeros((1,1))
     # endregion
     
@@ -287,5 +290,7 @@ if __name__=='__main__':
     
     loaded_pcd = np.load('sample_generated_pcd.npz')
     x = torch.from_numpy(loaded_pcd['coords']).detach().requires_grad_(True)
-
+    x = x.permute(1,0)
+    x = torch.stack([x,x],dim=0)
+    
     sim.calculate_loss(x,torch.tensor([0]))

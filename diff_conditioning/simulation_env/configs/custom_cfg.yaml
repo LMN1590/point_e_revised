@@ -15,4 +15,4 @@ obj_x_mul: [0.,-1.,0.]
 seed: 100
 torch_seed: 100
 static_as_fixed: True
-device_memory_fraction: 0.7
+device_memory_fraction: 0.75
