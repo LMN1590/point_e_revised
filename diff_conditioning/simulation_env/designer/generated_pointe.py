@@ -221,10 +221,14 @@ class GeneratedPointEPCD(Base):
         
         # region Calculate Occupancy (!!!!! Ensure Differentiability)
         coords_min, coords_mean, coords_max = self.original_coords.min(0).values, self.original_coords.mean(0), self.original_coords.max(0).values
-        points_min, points_mean, points_max = complete_pos_tensor.min(0).values, complete_pos_tensor.mean(0), complete_pos_tensor.max(0).values
+        points_min = complete_pos_tensor.min(0).values if self.bounding_box is None or 'min' not in self.bounding_box else torch.tensor(self.bounding_box['min'])
+        points_mean = complete_pos_tensor.mean(0) if self.bounding_box is None or 'mean' not in self.bounding_box else torch.tensor(self.bounding_box['mean'])
+        points_max = complete_pos_tensor.max(0).values if self.bounding_box is None or 'max' not in self.bounding_box else torch.tensor(self.bounding_box['max'])
+        # print(self.bounding_box)
+
         def calibrate_points(_pts:torch.Tensor, y_offset=0.):
             _pts_calibrated = _pts - points_mean # center
-            _pts_calibrated = _pts_calibrated / torch.max(points_max - points_min) * torch.max(coords_max - coords_min) # rescale
+            _pts_calibrated = _pts_calibrated / torch.max(points_max - points_min) * torch.max(coords_max - coords_min)*0.95 # rescale
             _pts_calibrated = _pts_calibrated + coords_mean # recenter
             _pts_calibrated = _pts_calibrated + torch.clip(coords_min - _pts_calibrated.min(0).values, min=0, max=torch.inf) # make sure within min-bound
             _pts_calibrated = _pts_calibrated - torch.clip(_pts_calibrated.max(0).values - coords_max, min=0, max=torch.inf) # make sure within max-bound

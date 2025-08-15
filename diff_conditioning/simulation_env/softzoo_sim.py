@@ -165,6 +165,7 @@ class SoftzooSimulation(BaseCond):
             lr = self.config.designer_lr,
             env = self.env,
             device = self.torch_device,
+            bounding_box=self.config.gen_pointe_bounding_box
         )
         for i,t_sample in zip(range(B//2),t.tolist()):
             ep_reward = self.forward_sim(t_sample,designer,pos[i].permute(1,0))
@@ -173,7 +174,9 @@ class SoftzooSimulation(BaseCond):
             print(grad[None]['self.env.design_space.buffer.geometry'].sum())
             designer.out_cache['geometry'].backward(gradient=grad[None]['self.env.design_space.buffer.geometry'])
             print('Current iter ', i)
-            print(pred_xstart.grad[i])
+            for j in range(B):
+                print(pred_xstart.grad[j])
+                print('----')
             print(pred_xstart.grad.shape)
         return torch.zeros((1,1))
     # endregion
