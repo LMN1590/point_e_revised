@@ -355,6 +355,8 @@ class DesignConfig:
     loss_landscape_vbr_trial_type: str # 'geometry'
     
     static_as_fixed:bool
+    
+    gen_pointe_bounding_box: Optional[Dict[Literal['max','mean','min'],List[float]]]
 
 @dataclass
 class FullConfig(BaseControllerConfig,DesignConfig):

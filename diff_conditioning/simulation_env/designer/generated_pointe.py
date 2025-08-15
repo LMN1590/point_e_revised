@@ -8,7 +8,7 @@ from sklearn.decomposition import PCA
 from sklearn.cluster import KMeans
 from sklearn.metrics import pairwise_distances_argmin
 
-from typing import TYPE_CHECKING, Dict, List, Optional, Callable
+from typing import TYPE_CHECKING, Dict, List, Optional, Callable, Literal
 import matplotlib.pyplot as plt
 
 from .base import Base
@@ -22,78 +22,23 @@ if TYPE_CHECKING:
 class GeneratedPointEPCD(Base):
     def __init__(
         self,lr,
-        env:'BaseEnv',
-        gripper_pos_tensor:torch.Tensor, n_voxels:int=20, sigma:float = 7e-4,
+        env:'BaseEnv', n_voxels:int=20, sigma:float = 7e-4,
         passive_geometry_mul:int=1,passive_softness_mul:int=1,
         device:str='cpu',
+        bounding_box:Optional[Dict[Literal['max','mean','min'],List[float]]] = None,
         **kwargs
     ):
         super(GeneratedPointEPCD, self).__init__(env)
         self.passive_geometry_mul = passive_geometry_mul
         self.passive_softness_mul = passive_softness_mul
+        self.bounding_box = bounding_box
         
-        # region Preprocess and Attach Base
-        gripper_pos_np = gripper_pos_tensor.detach().cpu().numpy() # [N,C]
-        gripper_labels = self.get_muscle_label(gripper_pos_np)
-        base_pos_tensor, base_labels = self.calculate_base_location(gripper_pos_np)
+        self.original_coords = self.env.design_space.get_x(s=0).float()
+        if isinstance(self.original_coords, np.ndarray):
+            self.original_coords = torch.from_numpy(self.original_coords).float()
+            
+        self.sigma = sigma
         
-        complete_pos_tensor = torch.concat([base_pos_tensor,gripper_pos_tensor],dim=0).float()
-        complete_labels = np.concatenate([base_labels,gripper_labels],axis=0)
-        # visualize_point_cloud(complete_pos_tensor,complete_labels)
-        unique_lbls = np.unique(complete_labels)
-        assert self.env.sim.solver.n_actuators == unique_lbls.shape[0], "The number of actuators must be equal to the number of generated labels. Probllem in configuration files"
-        # endregion
-        
-        # region Calculate Actuator Direction
-        all_part_pca_components, all_part_pca_singular_values, all_part_pc = extract_part_pca_inner(complete_pos_tensor.detach().cpu().numpy(),complete_labels,unique_lbls=set(complete_labels))
-        actuator_directions = [] # TODO: make dict
-        for k, part_pca_component in all_part_pca_components.items():
-            # Taking the first PCA component as the direction for actuators
-            actuator_directions.append(part_pca_component[0])
-        actuator_directions = np.array(actuator_directions)
-        actuator_directions = directions_to_spherical(actuator_directions)
-        self.actuator_directions = nn.Parameter(torch.from_numpy(actuator_directions))
-        # endregion
-
-        # region Calculate Occupancy (!!!!! Ensure Differentiability)
-        coords = self.env.design_space.get_x(s=0).float()
-        if isinstance(coords, np.ndarray):
-            coords = torch.from_numpy(coords).float()
-        coords_min, coords_mean, coords_max = coords.min(0).values, coords.mean(0), coords.max(0).values
-        points_min, points_mean, points_max = complete_pos_tensor.min(0).values, complete_pos_tensor.mean(0), complete_pos_tensor.max(0).values
-        def calibrate_points(_pts:torch.Tensor, y_offset=0.):
-            _pts_calibrated = _pts - points_mean # center
-            _pts_calibrated = _pts_calibrated / torch.max(points_max - points_min) * torch.max(coords_max - coords_min) # rescale
-            _pts_calibrated = _pts_calibrated + coords_mean # recenter
-            _pts_calibrated = _pts_calibrated + torch.clip(coords_min - _pts_calibrated.min(0).values, min=0, max=torch.inf) # make sure within min-bound
-            _pts_calibrated = _pts_calibrated - torch.clip(_pts_calibrated.max(0).values - coords_max, min=0, max=torch.inf) # make sure within max-bound
-            _pts_calibrated[:,1] = _pts_calibrated[:,1] + y_offset # align lower bound in y-axis
-            return _pts_calibrated
-        complete_pos_tensor_calibrated = calibrate_points(complete_pos_tensor)
-        y_offset = coords_min[1] - complete_pos_tensor_calibrated.min(0).values[1] # The supposedly 
-        complete_pos_tensor_calibrated = calibrate_points(complete_pos_tensor,y_offset=y_offset)
-        
-        pairwise_dist = torch.cdist(coords,complete_pos_tensor_calibrated) # , sim_coords(n), generated_coords(m)
-        p_ji = torch.exp(-(pairwise_dist**2) / (2 * sigma**2))  # (n, m) # Smooth per-point contribution (Gaussian kernel)
-        self.occupancy = 1 - torch.prod(1 - p_ji, dim=1)  # (n,) # Soft OR across points → final occupancy per voxel
-        # endregion
-        
-        # region Cluster Sim Coords
-        passive_lbl = 0
-        self.actuator = torch.zeros((self.env.sim.solver.n_actuators, coords.shape[0])) #(n_act,n)
-        self.is_passive = torch.zeros((coords.shape[0])).bool() #(n)
-        
-        coords_lbls_prob = torch.zeros((coords.shape[0],self.env.sim.solver.n_actuators))
-        for lbl in unique_lbls:
-            coords_cur_lbls_prob = p_ji[:,complete_labels==lbl]
-            occupancy_cluster = (1 - torch.prod(1-coords_cur_lbls_prob,dim=1)) #*(1. if lbl!=passive_lbl else 1e4)
-            coords_lbls_prob[:,lbl] = occupancy_cluster
-        coords_cluster = coords_lbls_prob.argmax(dim=1)
-        for lbl in unique_lbls:
-            if lbl==passive_lbl: self.is_passive[coords_cluster==lbl] = 1.
-            else: self.actuator[lbl,coords_cluster==lbl] = 1.
-        
-        # print(self.is_passive[(self.is_passive + self.occupancy)>1.].sum())
         self.device = torch.device(device)
         self.to(self.device)
         
@@ -228,7 +173,9 @@ class GeneratedPointEPCD(Base):
             is_passive_fixed = None
         )
     
-    def forward(self,inp=None):
+    def forward(self,inp:torch.Tensor):
+        self.create_representation_from_tensor(inp)
+        
         active_geometry = self.occupancy
         passive_geometry = self.occupancy * self.passive_geometry_mul # NOTE: the same as active
         geometry = torch.where(self.is_passive==1., passive_geometry, active_geometry)
@@ -247,7 +194,70 @@ class GeneratedPointEPCD(Base):
         design = {k: v.clone() for k, v in self.out_cache.items()}
         return design
     
+    def create_representation_from_tensor(self,gripper_pos_tensor:torch.Tensor):
+        # region Preprocess and Attach Base
+        gripper_pos_np = gripper_pos_tensor.detach().cpu().numpy() # [N,C]
+        gripper_labels = self.get_muscle_label(gripper_pos_np)
+        base_pos_tensor, base_labels = self.calculate_base_location(gripper_pos_np)
+        
+        complete_pos_tensor = torch.concat([base_pos_tensor,gripper_pos_tensor],dim=0).float()
+        complete_labels = np.concatenate([base_labels,gripper_labels],axis=0)
     
+        # visualize_point_cloud(complete_pos_tensor,complete_labels)
+        unique_lbls = np.unique(complete_labels)
+        assert self.env.sim.solver.n_actuators == unique_lbls.shape[0], "The number of actuators must be equal to the number of generated labels. Probllem in configuration files"
+        # endregion
+        
+        # region Calculate Actuator Direction
+        all_part_pca_components, all_part_pca_singular_values, all_part_pc = extract_part_pca_inner(complete_pos_tensor.detach().cpu().numpy(),complete_labels,unique_lbls=set(complete_labels))
+        actuator_directions = [] # TODO: make dict
+        for k, part_pca_component in all_part_pca_components.items():
+            # Taking the first PCA component as the direction for actuators
+            actuator_directions.append(part_pca_component[0])
+        actuator_directions = np.array(actuator_directions)
+        actuator_directions = directions_to_spherical(actuator_directions)
+        self.actuator_directions = nn.Parameter(torch.from_numpy(actuator_directions))
+        # endregion
+        
+        # region Calculate Occupancy (!!!!! Ensure Differentiability)
+        coords_min, coords_mean, coords_max = self.original_coords.min(0).values, self.original_coords.mean(0), self.original_coords.max(0).values
+        points_min, points_mean, points_max = complete_pos_tensor.min(0).values, complete_pos_tensor.mean(0), complete_pos_tensor.max(0).values
+        def calibrate_points(_pts:torch.Tensor, y_offset=0.):
+            _pts_calibrated = _pts - points_mean # center
+            _pts_calibrated = _pts_calibrated / torch.max(points_max - points_min) * torch.max(coords_max - coords_min) # rescale
+            _pts_calibrated = _pts_calibrated + coords_mean # recenter
+            _pts_calibrated = _pts_calibrated + torch.clip(coords_min - _pts_calibrated.min(0).values, min=0, max=torch.inf) # make sure within min-bound
+            _pts_calibrated = _pts_calibrated - torch.clip(_pts_calibrated.max(0).values - coords_max, min=0, max=torch.inf) # make sure within max-bound
+            _pts_calibrated[:,1] = _pts_calibrated[:,1] + y_offset # align lower bound in y-axis
+            return _pts_calibrated
+        complete_pos_tensor_calibrated = calibrate_points(complete_pos_tensor)
+        y_offset = coords_min[1] - complete_pos_tensor_calibrated.min(0).values[1] # The supposedly 
+        complete_pos_tensor_calibrated = calibrate_points(complete_pos_tensor,y_offset=y_offset)
+        
+        pairwise_dist = torch.cdist(self.original_coords,complete_pos_tensor_calibrated) # , sim_coords(n), generated_coords(m)
+        p_ji = torch.exp(-(pairwise_dist**2) / (2 * self.sigma**2))  # (n, m) # Smooth per-point contribution (Gaussian kernel)
+        self.occupancy = 1 - torch.prod(1 - p_ji, dim=1)  # (n,) # Soft OR across points → final occupancy per voxel
+        # endregion
+
+        # region Cluster Sim Coords
+        passive_lbl = 0
+        self.actuator = torch.zeros((self.env.sim.solver.n_actuators, self.original_coords.shape[0])) #(n_act,n)
+        self.is_passive = torch.zeros((self.original_coords.shape[0])).bool() #(n)
+        
+        coords_lbls_prob = torch.zeros((self.original_coords.shape[0],self.env.sim.solver.n_actuators))
+        for lbl in unique_lbls:
+            coords_cur_lbls_prob = p_ji[:,complete_labels==lbl]
+            occupancy_cluster = (1 - torch.prod(1-coords_cur_lbls_prob,dim=1)) #*(1. if lbl!=passive_lbl else 1e4)
+            coords_lbls_prob[:,lbl] = occupancy_cluster
+        coords_cluster = coords_lbls_prob.argmax(dim=1)
+        for lbl in unique_lbls:
+            if lbl==passive_lbl: self.is_passive[coords_cluster==lbl] = 1.
+            else: self.actuator[lbl,coords_cluster==lbl] = 1.
+        
+        # print(self.is_passive[(self.is_passive + self.occupancy)>1.].sum())
+        # endregion
+        
+
 # region Utilities
 def find_mid_lowest_pt(points:np.ndarray,radius:float = 0.05):
     points_std = StandardScaler().fit_transform(points)

@@ -73,5 +73,8 @@ loss_landscape_vbr_value_range:
 loss_landscape_vbr_n_trials: 10
 loss_landscape_vbr_trial_type: geometry
 
+# Designer [Generated PointE]
+gen_pointe_bounding_box: null
+
 # Designer [Misc]
 static_as_fixed: false

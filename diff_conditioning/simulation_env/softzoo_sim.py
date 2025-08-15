@@ -161,14 +161,13 @@ class SoftzooSimulation(BaseCond):
         pred_xstart.retain_grad()
         B = pred_xstart.shape[0]
         pos = pred_xstart[:B//2,:3]
+        designer = GeneratedPointEPCD(
+            lr = self.config.designer_lr,
+            env = self.env,
+            device = self.torch_device,
+        )
         for i,t_sample in zip(range(B//2),t.tolist()):
-            designer = GeneratedPointEPCD(
-                lr = self.config.designer_lr,
-                env = self.env,
-                gripper_pos_tensor = pos[i].permute(1,0),
-                device = self.torch_device,
-            )
-            ep_reward = self.forward_sim(t_sample,designer)
+            ep_reward = self.forward_sim(t_sample,designer,pos[i].permute(1,0))
             all_loss,grad,grad_name_control = self.backward_sim()
             print(ep_reward)
             print(grad[None]['self.env.design_space.buffer.geometry'].sum())
@@ -181,10 +180,11 @@ class SoftzooSimulation(BaseCond):
     
     # region Simulation
     def forward_sim(
-        self, it:int, designer:DesignerBase
+        self, it:int, designer:DesignerBase,
+        gripper_pos_tensor:torch.Tensor
     ):
         designer.reset()
-        designer_out = designer()
+        designer_out = designer(gripper_pos_tensor)
         design = dict()
         for design_type in self.config.set_design_types:
             if design_type == 'actuator_direction': assert getattr(designer,'has_actuator_direction',False)

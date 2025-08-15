@@ -20,3 +20,7 @@ device_memory_fraction: 0.75
 optimize_designer: True
 optimize_design_types: ['geometry']
 designer_lr: 0.1
+gen_pointe_bounding_box:
+  max: [0.5,0.5,0.5]
+  mean: [0.,0.,0.]
+  min: [-0.5,-0.5,-0.5]
