@@ -180,7 +180,6 @@ class PointCloudSampler:
                 if "low_res" in stage_model_kwargs:
                     samples = torch.cat([stage_model_kwargs["low_res"][:len(samples)], samples], dim=-1)
                 yield samples
-            print('done with one')
             
     
     def _uncond_guide_model(

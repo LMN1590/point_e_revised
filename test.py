@@ -1,7 +1,8 @@
-import numpy as np
 import torch
 
-loaded_pcd = np.load('sample_generated_pcd.npz')
-x = torch.from_numpy(loaded_pcd['coords']).detach()
-x=torch.stack([x,x],dim=0)
-print(x.shape)
+start_idx,end_idx = 128,0
+
+x = torch.tensor([2,3,4,129,230])
+
+res = torch.logical_and(x>=end_idx,x<=start_idx)
+print(res)

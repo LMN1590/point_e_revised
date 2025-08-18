@@ -8,7 +8,7 @@ from sklearn.decomposition import PCA
 from sklearn.cluster import KMeans
 from sklearn.metrics import pairwise_distances_argmin
 
-from typing import TYPE_CHECKING, Dict, List, Optional, Callable, Literal
+from typing import TYPE_CHECKING, Dict, List, Optional, Callable, Literal,Union
 import matplotlib.pyplot as plt
 
 from .base import Base
@@ -54,16 +54,22 @@ class GeneratedPointEPCD(Base):
         base_extent = base_coords_max - base_coords_min
         gripper_extent = gripper_points_max - gripper_points_min
         gripper_base_scale = gripper_extent/base_extent
+        
+        lowest_pt = find_mid_lowest_pt(gripper_pos_np,radius=0.25)
     
         calibrated_base_pts = calibrate_points(
             base_points, 
-            mean = find_mid_lowest_pt(gripper_pos_np), 
-            scale=0.02*gripper_base_scale,
+            mean = lowest_pt, 
+            scale=np.array([
+                0.1*gripper_base_scale[0],
+                0.02*gripper_base_scale[1],
+                0.1*gripper_base_scale[2]
+            ])
         )
     
         base_labels = [0]*base_points.shape[0]
         
-        return torch.from_numpy(calibrated_base_pts),np.array(base_labels)
+        return torch.from_numpy(calibrated_base_pts).to(self.device),np.array(base_labels)
     
     # region Muscle Label Generation
     def get_muscle_label(
@@ -134,7 +140,9 @@ class GeneratedPointEPCD(Base):
     def _split_muscle_layers(self, cluster_points:np.ndarray, target_center_np:np.ndarray):
         # PCA on cluster points
         cluster_center = cluster_points.mean(axis=0)
-        pca_local = PCA(n_components=3)
+        # TODO: Fix problem here sometimes num samples < 3
+        if min(*cluster_points.shape,3)<3: print("Warning!!!: Numer of points in cluster is small <3.")
+        pca_local = PCA(n_components=min(*cluster_points.shape,3))
         pca_local.fit(cluster_points)
 
         # Use 3rd component as local "vertical" axis
@@ -174,6 +182,8 @@ class GeneratedPointEPCD(Base):
         )
     
     def forward(self,inp:torch.Tensor):
+        inp = inp.to(self.device)
+        
         self.create_representation_from_tensor(inp)
         
         active_geometry = self.occupancy
@@ -205,11 +215,12 @@ class GeneratedPointEPCD(Base):
     
         # visualize_point_cloud(complete_pos_tensor,complete_labels)
         unique_lbls = np.unique(complete_labels)
-        assert self.env.sim.solver.n_actuators == unique_lbls.shape[0], "The number of actuators must be equal to the number of generated labels. Probllem in configuration files"
+        if not self.env.sim.solver.n_actuators == unique_lbls.shape[0]:
+            print("Warning!!!!: \n The number of actuators must be equal to the number of generated labels. Probllem in configuration files")
         # endregion
         
         # region Calculate Actuator Direction
-        all_part_pca_components, all_part_pca_singular_values, all_part_pc = extract_part_pca_inner(complete_pos_tensor.detach().cpu().numpy(),complete_labels,unique_lbls=set(complete_labels))
+        all_part_pca_components, all_part_pca_singular_values, all_part_pc = extract_part_pca_inner(complete_pos_tensor.detach().cpu().numpy(),complete_labels,unique_lbls=range(self.env.sim.solver.n_actuators))        
         actuator_directions = [] # TODO: make dict
         for k, part_pca_component in all_part_pca_components.items():
             # Taking the first PCA component as the direction for actuators
@@ -221,10 +232,9 @@ class GeneratedPointEPCD(Base):
         
         # region Calculate Occupancy (!!!!! Ensure Differentiability)
         coords_min, coords_mean, coords_max = self.original_coords.min(0).values, self.original_coords.mean(0), self.original_coords.max(0).values
-        points_min = complete_pos_tensor.min(0).values if self.bounding_box is None or 'min' not in self.bounding_box else torch.tensor(self.bounding_box['min'])
+        points_min = complete_pos_tensor.min(0).values if self.bounding_box is None or 'min' not in self.bounding_box else torch.min(torch.tensor(self.bounding_box['min']),complete_pos_tensor.min(0).values)
         points_mean = complete_pos_tensor.mean(0) if self.bounding_box is None or 'mean' not in self.bounding_box else torch.tensor(self.bounding_box['mean'])
-        points_max = complete_pos_tensor.max(0).values if self.bounding_box is None or 'max' not in self.bounding_box else torch.tensor(self.bounding_box['max'])
-        # print(self.bounding_box)
+        points_max = complete_pos_tensor.max(0).values if self.bounding_box is None or 'max' not in self.bounding_box else torch.max(torch.tensor(self.bounding_box['max']),complete_pos_tensor.max(0).values)
 
         def calibrate_points(_pts:torch.Tensor, y_offset=0.):
             _pts_calibrated = _pts - points_mean # center
@@ -272,7 +282,7 @@ def find_mid_lowest_pt(points:np.ndarray,radius:float = 0.05):
     mid_lowest_pt = points[points[:, 1] == mid_lowest_y][0]
     return mid_lowest_pt
 
-def calibrate_points(points:np.ndarray,mean:np.ndarray,flipped_x:bool = False,flipped_y:bool = False,flipped_z:bool=False,scale=1.0):
+def calibrate_points(points:np.ndarray,mean:np.ndarray,flipped_x:bool = False,flipped_y:bool = False,flipped_z:bool=False,scale:Union[float,np.ndarray]=1.0):
     points_mean = points.mean(0)
     norm_points = points - points_mean
     norm_points = norm_points * scale
@@ -292,7 +302,6 @@ def visualize_point_cloud(pcd_coords,labels):
     colors = disc_colors[labels]
     colors[labels < 0] = 0
     pcd.colors = o3d.utility.Vector3dVector(colors[:, :3])
-    
     all_part_pca_components, all_part_pca_singular_values, all_part_pc, color_debug = extract_part_pca(pcd, return_part_colors=True)
     line_meshes = []
     for i, (k, part_pca_components) in enumerate(all_part_pca_components.items()):

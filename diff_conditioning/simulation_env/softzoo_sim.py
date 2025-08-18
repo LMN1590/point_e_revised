@@ -28,12 +28,33 @@ from ..base_cond import BaseCond
 from .designer.generated_pointe import GeneratedPointEPCD
 from .designer.base import Base as DesignerBase
 
+def normalize_to_unit_box(points: torch.Tensor):
+    """
+    Normalize points to mean=0 and fit inside [-0.5, 0.5] for all axes.
+
+    Args:
+        points: (N, 3) tensor of coordinates
+    Returns:
+        normalized: (N, 3) tensor
+    """
+    # 1. Center to mean 0
+    centered = points - points.mean(dim=0)
+
+    # 2. Find half-range along each axis (max absolute coordinate)
+    max_abs = centered.abs().max(dim=0).values
+
+    # 3. Scale so the largest axis fits into [-0.5, 0.5]
+    scale = (0.5 / max_abs).min()
+    normalized = centered * scale
+
+    return normalized
+
 class SoftzooSimulation(BaseCond):
     # region Initialization
     def __init__(self,config:FullConfig, grad_scale:float, calc_gradient:bool = False):
         super(SoftzooSimulation, self).__init__(grad_scale,calc_gradient)
         self.config = config
-        self.torch_device = 'cuda' if config.non_taichi_device == 'torch_gpu' else 'cpu'
+        self.torch_device = 'cuda:0' if config.non_taichi_device == 'torch_gpu' else 'cpu'
         
         random.seed(config.seed)
         np.random.seed(config.seed)
@@ -86,6 +107,13 @@ class SoftzooSimulation(BaseCond):
             
         self.controller = controller_module.make(config, self.env, torch_device)
         
+        self.designer = GeneratedPointEPCD(
+            lr = self.config.designer_lr,
+            env = self.env,
+            device = self.torch_device,
+            bounding_box=self.config.gen_pointe_bounding_box
+        )
+        
     # region Load Config
     @classmethod
     def _load_default_config(cls):
@@ -135,62 +163,62 @@ class SoftzooSimulation(BaseCond):
     # endregion
     
     # region Gradient Calc Wrapper
-    def calculate_gradient(self, x:torch.Tensor,t:torch.Tensor, **model_kwargs):
-        x = x.detach().requires_grad_(True)
-        with torch.enable_grad():
-            loss = self.calculate_loss(x,t,**model_kwargs)
-        # print(loss.requires_grad, loss.grad_fn)
-        self.loss_lst.append(loss)
-    
-    def calculate_loss(
+    def calculate_gradient(
         self, 
         x: torch.Tensor, t: torch.Tensor,
-        # p_mean_var:Dict[str,torch.Tensor],
-        # diffusion:GaussianDiffusion, 
+        p_mean_var:Dict[str,torch.Tensor],
+        diffusion:GaussianDiffusion, 
         **model_kwargs
     ) -> torch.Tensor:
+        # x is shaped (B*2, C, N)
         
-        # if 'original_ts' in model_kwargs:
-        #     t = model_kwargs['original_ts']
+        x = x.detach().requires_grad_(True)
+        # x.retain_grad()
+        B = x.shape[0]
+        cur_loss = []
+        accum_grad = torch.zeros_like(x)
+        with torch.enable_grad():
+            if 'original_ts' in model_kwargs:
+                t = model_kwargs['original_ts']
+            
+            pred_xstart = diffusion._predict_xstart_from_eps(
+                x,t,
+                p_mean_var['eps']
+            )
+            pos = pred_xstart[:B//2,:3]
+            
+            for i,t_sample in zip(range(B//2),t.tolist()):
+                ep_reward = self.forward_sim(t_sample,pos[i].permute(1,0))
+                all_loss,grad,grad_name_control = self.backward_sim()
+                cur_loss.append(all_loss)
+                
+                if self.calc_gradient:
+                    self.designer.out_cache['geometry'].backward(gradient=grad[None]['self.env.design_space.buffer.geometry'])
+                    if not torch.isnan(x.grad.sum()):
+                        accum_grad[i,:3] = x.grad[i,:3]
+                        accum_grad[i+B//2,:3] = x.grad[i,:3]
+                    else:
+                        # TODO: Fix problem here where nan sometimes occur in simulation
+                        print("Warning!!!: Got nan",t)
+        self.grad_lst.append(accum_grad)
+        self.loss_lst.append(cur_loss)        
         
-        # pred_xstart = diffusion._predict_xstart_from_eps(
-        #     x,t,
-        #     p_mean_var['eps']
-        # )
-        pred_xstart = x
-        pred_xstart.retain_grad()
-        B = pred_xstart.shape[0]
-        pos = pred_xstart[:B//2,:3]
-        designer = GeneratedPointEPCD(
-            lr = self.config.designer_lr,
-            env = self.env,
-            device = self.torch_device,
-            bounding_box=self.config.gen_pointe_bounding_box
-        )
-        for i,t_sample in zip(range(B//2),t.tolist()):
-            ep_reward = self.forward_sim(t_sample,designer,pos[i].permute(1,0))
-            all_loss,grad,grad_name_control = self.backward_sim()
-            print(ep_reward)
-            print(grad[None]['self.env.design_space.buffer.geometry'].sum())
-            designer.out_cache['geometry'].backward(gradient=grad[None]['self.env.design_space.buffer.geometry'])
-            print('Current iter ', i)
-            for j in range(B):
-                print(pred_xstart.grad[j])
-                print('----')
-            print(pred_xstart.grad.shape)
-        return torch.zeros((1,1))
+
+        return -accum_grad*self.grad_scale
+        
+        
     # endregion
     
     # region Simulation
     def forward_sim(
-        self, it:int, designer:DesignerBase,
+        self, it:int,
         gripper_pos_tensor:torch.Tensor
     ):
-        designer.reset()
-        designer_out = designer(gripper_pos_tensor)
+        self.designer.reset()
+        designer_out = self.designer(gripper_pos_tensor)
         design = dict()
         for design_type in self.config.set_design_types:
-            if design_type == 'actuator_direction': assert getattr(designer,'has_actuator_direction',False)
+            if design_type == 'actuator_direction': assert getattr(self.designer,'has_actuator_direction',False)
             design[design_type] = designer_out[design_type]
         obs = self.env.reset(design)
         self.controller.reset()
@@ -200,12 +228,12 @@ class SoftzooSimulation(BaseCond):
             if 'particle_based_representation' in str(self.env.design_space):
                 for design_type in self.config.optimize_design_types:
                     design_fpath = os.path.join(self.design_dir, f'{design_type}_{it:04d}.pcd')
-                    design_pcd = designer.save_pcd(design_fpath, design, design_type)
+                    design_pcd = self.designer.save_pcd(design_fpath, design, design_type)
                 save_pcd_to_mesh(os.path.join(self.design_dir, f'mesh_{it:04d}.ply'), design_pcd)
             elif 'voxel_based_representation' in str(self.env.design_space):
                 for design_type in self.config.optimize_design_types:
                     design_fpath = os.path.join(self.design_dir, f'{design_type}_{it:04d}.ply')
-                    designer.save_voxel_grid(design_fpath, design, design_type)
+                    self.designer.save_voxel_grid(design_fpath, design, design_type)
             else:
                 raise NotImplementedError
             
@@ -292,13 +320,23 @@ if __name__=='__main__':
     sim = SoftzooSimulation(config,0.3,True)
     
     loaded_pcd = np.load('sample_generated_pcd.npz')
-    x = torch.from_numpy(loaded_pcd['coords']).detach().requires_grad_(True)
-    # pcd = o3d.io.read_point_cloud('hand.pcd')
-    # x=torch.from_numpy(np.array(pcd.points)).requires_grad_(True)
+    x = torch.from_numpy(loaded_pcd['coords']).detach()
+    pcd = o3d.io.read_point_cloud('hand.pcd')
+    x_hand=torch.from_numpy(np.array(pcd.points)).requires_grad_(True)
+
     
     x = x.permute(1,0)
-    x = torch.stack([x,x,x,x,x,x],dim=0)
+    x_hand = normalize_to_unit_box(x_hand).permute(1,0)
+    x = torch.stack([
+        # (torch.randn((3,4096))*0.5).requires_grad_(True),
+        # (torch.randn((3,4096))*0.5).requires_grad_(True),
+        x[:,:3393].detach().clone().requires_grad_(True),
+        x_hand.detach().clone().requires_grad_(True),
+        x[:,:3393].detach().clone().requires_grad_(True),
+        x_hand.detach().clone().requires_grad_(True),
+        
+    ],dim=0)
     
-    # print(x.shape)
+    sim.calculate_gradient(x,torch.tensor([0,0,0]))
     
-    sim.calculate_loss(x,torch.tensor([0,0,0]))
+    
