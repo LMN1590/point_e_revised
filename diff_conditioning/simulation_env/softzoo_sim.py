@@ -27,6 +27,7 @@ from .utils.path import CONFIG_DIR,DEFAULT_CFG_DIR
 from ..base_cond import BaseCond
 from .designer.generated_pointe import GeneratedPointEPCD
 from .designer.base import Base as DesignerBase
+from tensorboard_logger import tensorboard_logger
 
 def normalize_to_unit_box(points: torch.Tensor):
     """
@@ -190,7 +191,7 @@ class SoftzooSimulation(BaseCond):
             for i,t_sample in zip(range(B//2),t.tolist()):
                 ep_reward = self.forward_sim(t_sample,pos[i].permute(1,0))
                 all_loss,grad,grad_name_control = self.backward_sim()
-                cur_loss.append(all_loss)
+                cur_loss.append(all_loss[-1])
                 
                 if self.calc_gradient:
                     self.designer.out_cache['geometry'].backward(gradient=grad[None]['self.env.design_space.buffer.geometry'])
@@ -200,11 +201,16 @@ class SoftzooSimulation(BaseCond):
                     else:
                         # TODO: Fix problem here where nan sometimes occur in simulation
                         print("Warning!!!: Got nan",t)
+        cur_loss = np.array(cur_loss)
         self.grad_lst.append(accum_grad)
-        self.loss_lst.append(cur_loss)        
+        self.loss_lst.append(cur_loss)      
         
-
-        return -accum_grad*self.grad_scale
+        tensorboard_logger.log_scalar("Simulation_Grad/Loss",cur_loss.mean())
+        scaled_gradient = -accum_grad*self.grad_scale
+        tensorboard_logger.log_scalar("Simulation_Grad/GradientNorm",scaled_gradient.view(-1).norm(2))
+        tensorboard_logger.increment_step()
+  
+        return scaled_gradient
         
         
     # endregion

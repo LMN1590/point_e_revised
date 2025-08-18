@@ -1,4 +1,4 @@
-out_dir: ./local/gripping_v0/gripping_scale_1e-1
+out_dir: ./local/gripping_v0/hand_normal_ddim256_1e3_startidx_96
 env_config_file: gripping_env.yaml
 save_every_iter: 1
 render_every_iter: 1
