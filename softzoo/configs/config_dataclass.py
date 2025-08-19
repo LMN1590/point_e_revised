@@ -425,6 +425,8 @@ class FullConfig(BaseControllerConfig,DesignConfig):
     # Object Velocity Loss
     obj_v_mul: List[float] # field(default_factory#lambda: [1., 0., 0.])
     
+    # Gripping Object Loss
+    obj_initial_pos:List[float]
     # Utils
     device_memory_fraction:float
     fixed_v:str

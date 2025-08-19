@@ -3,6 +3,7 @@ import torch as th
 import torch.nn as nn
 
 from typing import Sequence, Optional, Literal, Callable, Dict, Tuple, Union, Any
+from tqdm import tqdm
 
 from .const import DIFFUSION_LOSS_TYPE,DIFFUSION_MEAN_TYPE,DIFFUSION_VAR_TYPE
 from ..diff_utils import _extract_into_tensor,normal_kl,discretized_gaussian_log_likelihood,mean_flat,approx_standard_normal_cdf
@@ -31,6 +32,8 @@ class GaussianDiffusion:
         model_mean_type: DIFFUSION_MEAN_TYPE,
         model_var_type: DIFFUSION_VAR_TYPE,
         loss_type: DIFFUSION_LOSS_TYPE,
+        k:int,
+        condition_threshold:int,
         discretized_t0: bool = False,
         channel_scales: Optional[np.ndarray] = None,
         channel_biases: Optional[np.ndarray] = None,
@@ -41,6 +44,8 @@ class GaussianDiffusion:
         self.discretized_t0 = discretized_t0
         self.channel_scales = channel_scales
         self.channel_biases = channel_biases
+        self.k = k
+        self.condition_threshold = condition_threshold
 
         # region Alpha and Beta Calculation
         # Use float64 for accuracy.
@@ -348,13 +353,19 @@ class GaussianDiffusion:
             denoised_fn=denoised_fn,
             model_kwargs=model_kwargs,
         )
-        noise = th.randn_like(x)
+        
         nonzero_mask = (
             (t != 0).float().view(-1, *([1] * (len(x.shape) - 1)))
         )  # no noise when t == 0
-        if cond_fn is not None and t[0]<=96:
-            out["mean"] = self.condition_mean(cond_fn, out, x, t, model_kwargs=model_kwargs)
-        sample = out["mean"] + nonzero_mask * th.exp(0.5 * out["log_variance"]) * noise
+        sample = x
+        if cond_fn is not None and t[0]<=self.condition_threshold:
+            for _ in tqdm(range(self.k),desc = f"Current iter {t[0].item()}"):
+                out["mean"] = self.condition_mean(cond_fn, out, sample, t, model_kwargs=model_kwargs)
+                noise = th.randn_like(x)
+                sample = out["mean"] + nonzero_mask * th.exp(0.5 * out["log_variance"]) * noise
+        else:
+            noise = th.randn_like(x)
+            sample = out["mean"] + nonzero_mask * th.exp(0.5 * out["log_variance"]) * noise
         return {"sample": sample, "pred_xstart": out["pred_xstart"]}
     
     def p_sample_loop(

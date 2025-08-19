@@ -1,4 +1,4 @@
-out_dir: ./local/gripping_v0/hand_normal_ddim256_1e3_startidx_96
+out_dir: ./local/gripping_v0/hand_grad_ddim256_scale1e0_k3_thresh96_updated_grippingloss
 env_config_file: gripping_env.yaml
 save_every_iter: 1
 render_every_iter: 1
@@ -8,9 +8,9 @@ n_frames: 100
 controller_type: all_on
 action_v_strength: 0.3
 
-loss_types: [ThrowingObjectLoss]
+loss_types: [GrippingObjectLoss]
 obj_particle_id: 2
-obj_x_mul: [0.,-1.,0.]
+obj_initial_pos: [0.55, 0.4, 0.4]
 
 seed: 100
 torch_seed: 100

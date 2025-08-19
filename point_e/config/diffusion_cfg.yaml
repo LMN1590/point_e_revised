@@ -6,6 +6,8 @@ DIFFUSION_CONFIGS:
     schedule: cosine
     timesteps: 1024
     respacing: ddim256
+    k: 3
+    condition_threshold: 96
   base40M-textvec: *base_diffusion_config
   base40M-uncond: *base_diffusion_config
   base40M: *base_diffusion_config
@@ -18,3 +20,5 @@ DIFFUSION_CONFIGS:
     schedule: linear
     timesteps: 1024
     respacing: ddim256
+    k: 3
+    condition_threshold: 96

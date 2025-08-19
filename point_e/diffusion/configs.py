@@ -33,6 +33,8 @@ def diffusion_from_config(config:BaseDiffusionConfig) -> GaussianDiffusion:
         loss_type="mse",
         channel_scales=channel_scales,
         channel_biases=channel_biases,
+        k=config.get("k",1),
+        condition_threshold = config.get("condition_threshold",1e5)
     )
     if respace is None:
         return GaussianDiffusion(**kwargs)

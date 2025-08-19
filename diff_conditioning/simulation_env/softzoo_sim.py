@@ -248,7 +248,7 @@ class SoftzooSimulation(BaseCond):
         fixed_v = [0.,0.,0.]
         cur_v_idx = 0
         
-        for frame in tqdm(range(self.config.n_frames), desc=f'Forward #{it:04d}'):
+        for frame in range(self.config.n_frames):
             if frame >= velocities_by_frame[cur_v_idx][0]:
                 fixed_v = velocities_by_frame[cur_v_idx][1]
                 cur_v_idx +=1

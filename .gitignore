@@ -6,3 +6,4 @@ assets/
 logs/
 csv_output/
 local/
+runs/
