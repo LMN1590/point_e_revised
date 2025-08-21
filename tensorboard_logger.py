@@ -159,4 +159,4 @@ for epoch in range(num_epochs):
 writer.close()
 """
 
-tensorboard_logger = quick_tensorboard_setup("test")
+tensorboard_logger = quick_tensorboard_setup("hand_grad_ddim256_scale1e1_k3_thresh96_grippingloss_onhand")

@@ -1,4 +1,4 @@
-out_dir: ./local/debug/test
+out_dir: ./local/gripping_v0/hand_grad_ddim256_scale1e1_k3_thresh96_grippingloss_onhand
 env_config_file: gripping_env.yaml
 save_every_iter: 1
 render_every_iter: 1
@@ -15,7 +15,7 @@ obj_initial_pos: [0.55, 0.4, 0.4]
 seed: 100
 torch_seed: 100
 static_as_fixed: True
-device_memory_fraction: 0.75
+device_memory_fraction: 0.7
 
 optimize_designer: True
 optimize_design_types: ['geometry']

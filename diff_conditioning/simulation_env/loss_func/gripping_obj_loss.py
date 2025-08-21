@@ -40,7 +40,10 @@ class GrippingObjectLoss(Loss):
 
     def reset(self):
         super().reset()
-        self._compute_misc()
+        current_s = self.env.sim.solver.current_s
+        current_s_local = self.env.sim.solver.get_cyclic_s(current_s)
+
+        self._compute_misc(current_s_local)
 
     def compute_final_step_loss(self, s):
         s_local = self.get_s_local(s)
@@ -55,18 +58,16 @@ class GrippingObjectLoss(Loss):
         return id == self.obj_particle_id
 
     @ti.kernel
-    def _compute_misc(self):
-        current_s = self.env.sim.solver.current_s
-        current_s_local = self.env.sim.solver.get_cyclic_s(current_s)
-
+    def _compute_misc(self,s:I_DTYPE):
+        # TODO: Might need to chheck the validity of this loss function.
         for p in range(self.env.sim.solver.n_particles[None]):
             id = self.env.sim.solver.particle_ids[p]
             if self._is_object(id) and self.env.sim.solver.p_rho[p] > 0:
                 self.data['n_object_particles'][None] += ti.cast(1, F_DTYPE)
-                self.data['initial_obj_x'][p] = self.env.sim.solver.x[current_s_local, p] 
+                self.data['initial_obj_x'][p] = self.env.sim.solver.x[s, p] 
             elif self.env.design_space.is_robot(id) and self.env.sim.solver.p_rho[p] > 0:
                 self.data['n_robot_particles'][None] += ti.cast(1, F_DTYPE)
-                self.data['robot_com'][None] += self.env.sim.solver.x[current_s_local, p]
+                self.data['robot_com'][None] += self.env.sim.solver.x[s, p]
         if self.data['n_robot_particles'][None] > 0:
             self.data['robot_com'][None]/=self.data['n_robot_particles'][None]
                 

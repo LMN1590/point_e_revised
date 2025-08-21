@@ -245,7 +245,7 @@ class GeneratedPointEPCD(Base):
             _pts_calibrated[:,1] = _pts_calibrated[:,1] + y_offset # align lower bound in y-axis
             return _pts_calibrated
         complete_pos_tensor_calibrated = calibrate_points(complete_pos_tensor)
-        y_offset = coords_min[1] - complete_pos_tensor_calibrated.min(0).values[1] # The supposedly 
+        y_offset = coords_max[1] - complete_pos_tensor_calibrated.max(0).values[1] # To make the gripper at the top of the design space
         complete_pos_tensor_calibrated = calibrate_points(complete_pos_tensor,y_offset=y_offset)
         
         pairwise_dist = torch.cdist(self.original_coords,complete_pos_tensor_calibrated) # , sim_coords(n), generated_coords(m)

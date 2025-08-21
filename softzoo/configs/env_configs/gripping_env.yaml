@@ -8,7 +8,7 @@ SIMULATOR:
   use_checkpointing: True
   max_substeps_local: 20
   max_substeps: 7000
-  max_num_particles: 150000
+  max_num_particles: 100000
   use_dynamic_field: False
   checkpoint_cache_device: torch_cpu
   base_active_materials: []
@@ -33,14 +33,14 @@ ENVIRONMENT:
     - type: Primitive.Mesh
       file_path: '/media/aioz-nghiale/data/Data/mujoco_scanned_objects/models/5_HTP/model.obj'
       scale: [0.6,0.6,0.6]
-      initial_position: [0.55, 0.4, 0.4]
+      initial_position: [0.55, 0.0, 0.4]
       initial_rotation: [0.7071, -0.7071, 0.0, 0.0]
       initial_velocity: [0., 0., 0.]
       sample_density: 16
       material: FakeRigid
       particle_id: 2
       semantic_id: 2
-      ground_height: *ground_height
+      ground_height: 0.4
   # Environment-specific
   use_renderer: False
   actuation_strength: 0.3
@@ -54,7 +54,7 @@ ENVIRONMENT:
       type: Primitive.Box
       size: [0.08, 0.08, 0.08]
       sample_density: 64
-      initial_position: [0.55, 0.2, 0.4]
+      initial_position: [0.55, 0.345, 0.4]
       initial_velocity: [0., 0., 0.]
       material: DiffAquaMuscle
       particle_id: 3 # used as robot id

@@ -86,13 +86,13 @@ class LandEnvironment(BaseEnv):
             matter_material_id = np.random.choice(self.matter_materials).value
             self.reset_matter(reset_s, matter_material_id)
 
-        # Put robot on ground
-        max_surface_height = self.get_max_surface_height_under_robot(reset_s)
-        if self.cfg.ENVIRONMENT.CUSTOM.has_matter_on_ground:
-            max_surface_height += self.cfg.ENVIRONMENT.CUSTOM.matter_thickness
-        robot_x = self.design_space.get_x(reset_s)
-        offset = self.sim.device.tensor([0., max_surface_height + self.design_space.initial_position[1] - robot_x.min(0)[0][1], 0.])
-        self.design_space.transform_x(reset_s, offset)
+        # # Put robot on ground
+        # max_surface_height = self.get_max_surface_height_under_robot(reset_s)
+        # if self.cfg.ENVIRONMENT.CUSTOM.has_matter_on_ground:
+        #     max_surface_height += self.cfg.ENVIRONMENT.CUSTOM.matter_thickness
+        # robot_x = self.design_space.get_x(reset_s)
+        # offset = self.sim.device.tensor([0., max_surface_height + self.design_space.initial_position[1] - robot_x.min(0)[0][1], 0.])
+        # self.design_space.transform_x(reset_s, offset)
 
         # Reset objective
         self.objective.reset()

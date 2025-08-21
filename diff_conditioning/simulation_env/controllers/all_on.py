@@ -22,10 +22,8 @@ class AllOn(Base):
         inp = inp['time'].float()
         
         act = torch.zeros((self.n_actuators,), requires_grad=False)
-        # print(inp)
-        if inp < 0.75:
-            act[::2] = 1.0
-            act[1::2] = -1.0
+        act[::2] = 1.0
+        act[1::2] = -1.0
         act = act * self.actuation_strength
         return act.detach().clone()
 
