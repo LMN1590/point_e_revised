@@ -47,7 +47,7 @@ class LossSet:
         self.shared_data = dict()  # TODO: use shared data to avoid recomputation
         
     def compute_loss(
-        self, loss_reset_kwargs, 
+        self, 
         post_substep_grad_fn:List[Callable] = [],
         compute_grad= False,
         grad_names:Dict[int,List[str]] = dict()
@@ -55,9 +55,6 @@ class LossSet:
         # Instantiate a cache for desired gradients
         grad = {k: {vv: None for vv in v} for k, v in grad_names.items()}
         grad_s = grad_names.keys()
-        
-        # Reset intermediate data for loss computation and gradient
-        self.reset(loss_reset_kwargs)
         
         # Forward
         latest_s = self.env.sim.solver.get_latest_s(consider_cycle=False)

@@ -230,6 +230,9 @@ class SoftzooSimulation(BaseCond):
         self.controller.reset()
         ep_reward = 0.
         
+        loss_reset_kwargs = {k: {} for k in self.config.loss_types}
+        self.loss_set.reset(loss_reset_kwargs)
+        
         if self.config.optimize_designer and (it%self.config.render_every_iter==0):
             if 'particle_based_representation' in str(self.env.design_space):
                 for design_type in self.config.optimize_design_types:
@@ -290,7 +293,6 @@ class SoftzooSimulation(BaseCond):
                 break
         return ep_reward
     def backward_sim(self):
-        loss_reset_kwargs = {k: {} for k in self.config.loss_types}
         grad_names:Dict[int,List] = dict()
         if self.config.action_space == 'particle_v':
             grad_name_control = 'self.env.sim.solver.v'
@@ -310,7 +312,7 @@ class SoftzooSimulation(BaseCond):
             for dsr_buffer_name in self.config.optimize_design_types:
                 grad_names[s].append(f'self.env.design_space.buffer.{dsr_buffer_name}')
         try:
-            all_loss, grad = self.loss_set.compute_loss(loss_reset_kwargs, self.post_substep_grad_fn, compute_grad=len(grad_names) > 0, grad_names=grad_names)
+            all_loss, grad = self.loss_set.compute_loss(self.post_substep_grad_fn, compute_grad=len(grad_names) > 0, grad_names=grad_names)
         except Exception as e: # HACK
             raise e
             all_loss = np.zeros([1])
