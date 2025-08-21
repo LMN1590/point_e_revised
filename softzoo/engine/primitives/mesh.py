@@ -72,7 +72,7 @@ class Mesh(PrimitiveBase):
 
             # Step 4
             new_bbox_min_y = triangles[:, 1::3].min()
-            min_allowed_y = 0.1#cfg.ground_height 0.1
+            min_allowed_y = cfg.ground_height #0.1
             if new_bbox_min_y < min_allowed_y:
                 lift = min_allowed_y - new_bbox_min_y
                 triangles[:, 1::3] += lift

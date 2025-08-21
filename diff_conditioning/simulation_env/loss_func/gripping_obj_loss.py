@@ -27,6 +27,12 @@ class GrippingObjectLoss(Loss):
                 dtype=F_DTYPE,
                 shape=(),
                 needs_grad=True
+            ),
+            initial_obj_x = ti.Vector.field(
+                3,
+                F_DTYPE,
+                shape=(self.env.sim.solver.n_particles[None]),
+                needs_grad=True
             )
         )
         self.obj_particle_id = obj_particle_id
@@ -54,6 +60,7 @@ class GrippingObjectLoss(Loss):
             id = self.env.sim.solver.particle_ids[p]
             if self._is_object(id) and self.env.sim.solver.p_rho[p] > 0:
                 self.data['n_object_particles'][None] += ti.cast(1, F_DTYPE)
+                self.data['initial_obj_x'][p] = self.env.sim.solver.x[0, p] 
             elif self.env.design_space.is_robot(id) and self.env.sim.solver.p_rho[p] > 0:
                 self.data['n_robot_particles'][None] += ti.cast(1, F_DTYPE)
                 self.data['robot_com'][None] += self.env.sim.solver.x[0, p]
@@ -66,6 +73,6 @@ class GrippingObjectLoss(Loss):
             id = self.env.sim.solver.particle_ids[p]
             if self._is_object(id) and self.env.sim.solver.p_rho[p] > 0:
                 x_mul = ti.Vector([1.,1.,1.], F_DTYPE) / self.data['n_object_particles'][None]
-                diff = self.env.sim.solver.x[s_local, p] - self.obj_initial_pos + self.data['robot_com'][None]
-                p_loss = (ti.abs(diff)*x_mul).sum()
-                self.data['loss'][s] += p_loss # TODO: compute difference from initial position
+                diff = self.env.sim.solver.x[s_local, p] - (self.data['initial_obj_x'][p] - self.obj_initial_pos + self.data['robot_com'][None])
+                p_loss = (diff*diff*x_mul).sum()
+                self.data['loss'][s] += p_loss 

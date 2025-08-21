@@ -1,4 +1,4 @@
-out_dir: ./local/gripping_v0/hand_grad_ddim256_scale1e0_k3_thresh96_updated_grippingloss
+out_dir: ./local/debug/test
 env_config_file: gripping_env.yaml
 save_every_iter: 1
 render_every_iter: 1
