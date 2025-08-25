@@ -52,10 +52,11 @@ def normalize_to_unit_box(points: torch.Tensor):
 
 class SoftzooSimulation(BaseCond):
     # region Initialization
-    def __init__(self,config:FullConfig, grad_scale:float, calc_gradient:bool = False):
+    def __init__(self,config:FullConfig, grad_scale:float, calc_gradient:bool = False,grad_clamp:float = 1e-2):
         super(SoftzooSimulation, self).__init__(grad_scale,calc_gradient)
         self.config = config
         self.torch_device = 'cuda:0' if config.non_taichi_device == 'torch_gpu' else 'cpu'
+        self.grad_clamp = grad_clamp
         
         random.seed(config.seed)
         np.random.seed(config.seed)
@@ -206,7 +207,7 @@ class SoftzooSimulation(BaseCond):
         self.loss_lst.append(cur_loss)      
         
         tensorboard_logger.log_scalar("Simulation_Grad/Loss",cur_loss.mean())
-        scaled_gradient = -accum_grad*self.grad_scale
+        scaled_gradient = torch.clamp(-accum_grad*self.grad_scale,min = -self.grad_clamp,max=self.grad_clamp)
         tensorboard_logger.log_scalar("Simulation_Grad/GradientNorm",scaled_gradient.view(-1).norm(2))
         tensorboard_logger.increment_step()
   
