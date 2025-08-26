@@ -1,0 +1,46 @@
+data:
+  data_type: point
+  n_views_per_iter: 2
+  zero_level: 0
+
+model:
+  sphere_radius: 0.2
+  num_points: 20000
+  grid_res: 128 # poisson grid resolution
+  psr_sigma: 2
+
+  apply_sigmoid: True
+  normal_normalize: False
+
+train:
+  schedule:
+    initial: 1e-2
+    interval: 150
+    factor: 0.5
+    final: 1e-3
+  
+  total_epochs: 300
+
+  w_chamfer: 1.
+  w_chamfer_v_mesh: 1.
+  w_chamfer_x_0: 10.
+  w_inside: 0.1
+  w_outside: 1.
+
+  n_sup_point: 20000
+  n_grow_points: 2000
+  subsample_vertex: False
+  l_weight: {}
+
+  exp_pcl: False
+  exp_mesh: True
+  out_dir: out/demo_optim
+
+  resample_every: 60
+
+  vis_psr: False
+
+sample:
+  num_points: 10000
+  density: 3.0
+  voxel_size: 0.02
