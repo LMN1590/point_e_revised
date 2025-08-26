@@ -5,7 +5,7 @@ from softzoo.envs.base_env import BaseEnv
 from softzoo.configs.config_dataclass import BaseControllerConfig
 
 
-def make(args:BaseControllerConfig, env:BaseEnv, torch_device:Literal['cuda','cpu']):
+def make(args:BaseControllerConfig, env:BaseEnv, torch_device:str):
     if args.action_space == 'particle_v':
         n_actuators = env.design_space.compute_n_particles()
         actuation_strength = args.action_v_strength

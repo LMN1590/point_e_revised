@@ -4,7 +4,7 @@ from softzoo.configs.config_dataclass import FullConfig
 from softzoo.envs.base_env import BaseEnv
 from .loss_func.lossset import LossSet
 
-def make_loss(args:FullConfig, env:BaseEnv, torch_device:Literal['cuda','cpu']):
+def make_loss(args:FullConfig, env:BaseEnv, torch_device:str):
     loss_configs = dict()
     loss_coefs = dict()
     for i, loss_type in enumerate(args.loss_types):

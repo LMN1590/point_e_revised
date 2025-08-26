@@ -32,13 +32,12 @@ train:
   subsample_vertex: False
   l_weight: {}
 
-  exp_pcl: False
   exp_mesh: True
-  out_dir: out/demo_optim
+  exp_pcl: True
+  dir_pcl: out/demo_optim/pcls
+  dir_mesh: out/demo_optim/meshes
 
   resample_every: 60
-
-  vis_psr: False
 
 sample:
   num_points: 10000

@@ -8,7 +8,7 @@ from yaml import safe_load
 import os
 import shutil
 import json
-from typing import Dict, List
+from typing import Dict, List, Tuple
 from tqdm import tqdm
 
 from softzoo.configs.config_dataclass import FullConfig
@@ -21,12 +21,16 @@ from point_e.diffusion.gaussian_diffusion import GaussianDiffusion
 
 from .env import make_env
 from .loss import make_loss
+from .sap import CustomSAP
 from . import controllers as controller_module
 
 from .utils.path import CONFIG_DIR,DEFAULT_CFG_DIR
 from ..base_cond import BaseCond
 from .designer.generated_pointe import GeneratedPointEPCD
 from .designer.base import Base as DesignerBase
+
+from sap.config_dataclass import SAPConfig
+
 from tensorboard_logger import tensorboard_logger
 
 def normalize_to_unit_box(points: torch.Tensor):
@@ -52,8 +56,17 @@ def normalize_to_unit_box(points: torch.Tensor):
 
 class SoftzooSimulation(BaseCond):
     # region Initialization
-    def __init__(self,config:FullConfig, grad_scale:float, calc_gradient:bool = False,grad_clamp:float = 1e-2):
+    def __init__(
+        self,
+        config:FullConfig, sap_config:SAPConfig,
+        grad_scale:float, calc_gradient:bool = False,
+        grad_clamp:float = 1e-2
+    ):
         super(SoftzooSimulation, self).__init__(grad_scale,calc_gradient)
+        self.sap = CustomSAP(
+            sap_config,
+            device = torch.device('cuda:1' if config.non_taichi_device == 'torch_gpu' else 'cpu')
+        )
         self.config = config
         self.torch_device = 'cuda:0' if config.non_taichi_device == 'torch_gpu' else 'cpu'
         self.grad_clamp = grad_clamp
@@ -102,12 +115,10 @@ class SoftzooSimulation(BaseCond):
 
     def _init_sim(self,config:FullConfig):
         self.env = make_env(config) 
-        torch_device = 'cuda' if config.non_taichi_device == 'torch_gpu' else 'cpu'
-
         # Define loss
-        self.loss_set = make_loss(config, self.env, torch_device)
+        self.loss_set = make_loss(config, self.env, self.torch_device)
             
-        self.controller = controller_module.make(config, self.env, torch_device)
+        self.controller = controller_module.make(config, self.env, self.torch_device)
         
         self.designer = GeneratedPointEPCD(
             lr = self.config.designer_lr,
@@ -129,13 +140,15 @@ class SoftzooSimulation(BaseCond):
         return default_cfg|controller_cfg|designer_cfg
     
     @classmethod
-    def load_config(cls,cfg_path:str):
-        with open(os.path.join(CONFIG_DIR,cfg_path)) as f:
+    def load_config(cls,cfg_path:str,sap_cfg_path:str)->Tuple[FullConfig,SAPConfig]:
+        with open(cfg_path) as f:
             cfg = safe_load(f)
+        with open(sap_cfg_path) as f:
+            sap_cfg = safe_load(f)
         
         default_cfg = cls._load_default_config()
         
-        return FullConfig(**(default_cfg|cfg))
+        return FullConfig(**(default_cfg|cfg)), sap_cfg
     # endregion
     
     def _init_checkpointing(self,config:FullConfig):
@@ -190,11 +203,21 @@ class SoftzooSimulation(BaseCond):
             pos = pred_xstart[:B//2,:3]
             
             for i,t_sample in zip(range(B//2),t.tolist()):
-                ep_reward = self.forward_sim(t_sample,pos[i].permute(1,0))
+                x_0 = pos[i].permute(0,1) # (N,3)
+                dense_gripper = self.sap.dense_sample(
+                    x_0,
+                    iter_idx = t_sample,
+                    batch_idx = i,
+                    save_res = True
+                )
+                dense_gripper.requires_grad = True
+                
+                ep_reward = self.forward_sim(t_sample,dense_gripper)
                 all_loss,grad,grad_name_control = self.backward_sim()
                 cur_loss.append(all_loss[-1])
                 
                 if self.calc_gradient:
+                    #TODO: Apply grad here back to x
                     self.designer.out_cache['geometry'].backward(gradient=grad[None]['self.env.design_space.buffer.geometry'])
                     if not torch.isnan(x.grad.sum()):
                         accum_grad[i,:3] = x.grad[i,:3]
