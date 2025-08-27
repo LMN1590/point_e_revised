@@ -24,3 +24,5 @@ gen_pointe_bounding_box:
   max: [0.5,0.5,0.5]
   mean: [0.,0.,0.]
   min: [-0.5,-0.5,-0.5]
+
+device: cpu

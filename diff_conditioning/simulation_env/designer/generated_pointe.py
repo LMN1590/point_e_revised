@@ -41,6 +41,7 @@ class GeneratedPointEPCD(Base):
         
         self.device = torch.device(device)
         self.to(self.device)
+        self.original_coords = self.original_coords.to(self.device)
         
     def calculate_base_location(self,gripper_pos_np:np.ndarray):
         # Label 0 is reserved for the base, where no velocity is allowed to propagate to hold the gripper up.
@@ -181,8 +182,8 @@ class GeneratedPointEPCD(Base):
             is_passive_fixed = None
         )
     
-    def forward(self,inp:torch.Tensor):
-        inp = inp.to(self.device)
+    def forward(self,input:torch.Tensor):
+        inp = input.to(self.device)
         
         self.create_representation_from_tensor(inp)
         
@@ -232,9 +233,11 @@ class GeneratedPointEPCD(Base):
         
         # region Calculate Occupancy (!!!!! Ensure Differentiability)
         coords_min, coords_mean, coords_max = self.original_coords.min(0).values, self.original_coords.mean(0), self.original_coords.max(0).values
-        points_min = complete_pos_tensor.min(0).values if self.bounding_box is None or 'min' not in self.bounding_box else torch.min(torch.tensor(self.bounding_box['min']),complete_pos_tensor.min(0).values)
-        points_mean = complete_pos_tensor.mean(0) if self.bounding_box is None or 'mean' not in self.bounding_box else torch.tensor(self.bounding_box['mean'])
-        points_max = complete_pos_tensor.max(0).values if self.bounding_box is None or 'max' not in self.bounding_box else torch.max(torch.tensor(self.bounding_box['max']),complete_pos_tensor.max(0).values)
+        actual_min,actual_mean,actual_max = complete_pos_tensor.min(0).values,complete_pos_tensor.mean(0),complete_pos_tensor.max(0).values 
+        
+        points_min = actual_min if self.bounding_box is None or 'min' not in self.bounding_box else torch.min(torch.tensor(self.bounding_box['min']).to(self.device),actual_min)
+        points_mean =  actual_mean if self.bounding_box is None or 'mean' not in self.bounding_box else torch.tensor(self.bounding_box['mean']).to(self.device)
+        points_max = actual_max if self.bounding_box is None or 'max' not in self.bounding_box else torch.max(torch.tensor(self.bounding_box['max']).to(self.device),actual_max)
 
         def calibrate_points(_pts:torch.Tensor, y_offset=0.):
             _pts_calibrated = _pts - points_mean # center

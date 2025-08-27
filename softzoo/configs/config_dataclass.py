@@ -429,5 +429,6 @@ class FullConfig(BaseControllerConfig,DesignConfig):
     obj_initial_pos:List[float]
     # Utils
     device_memory_fraction:float
+    device: str
     fixed_v:str
 # endregion

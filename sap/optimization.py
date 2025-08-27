@@ -7,7 +7,7 @@ import open3d as o3d
 from typing import Optional, Dict,Literal
 import os
 
-from config_dataclass import SAPConfig
+from sap.config_dataclass import SAPConfig
 
 from .model import PSR2Mesh
 from .dpsr import DPSR
@@ -38,8 +38,8 @@ class Trainer:
             ), 
             sig=cfg['model']['psr_sigma']
         )
-        if torch.cuda.device_count() > 1:    
-            self.dpsr = torch.nn.DataParallel(self.dpsr) # parallell DPSR
+        # if torch.cuda.device_count() > 1:    
+        #     self.dpsr = torch.nn.DataParallel(self.dpsr) # parallell DPSR
         self.dpsr = self.dpsr.to(device)
     
     # region Training Step
@@ -126,6 +126,7 @@ class Trainer:
         tmesh = o3d.t.geometry.TriangleMesh.from_legacy(mesh)
         scene = o3d.t.geometry.RaycastingScene()
         _ = scene.add_triangles(tmesh)
+
         occ = scene.compute_occupancy(o3d.core.Tensor(pts_gt[0].detach().cpu().numpy(), dtype=o3d.core.Dtype.Float32))
         x_0_weight[:,occ.numpy() > 0] *= self.cfg['train']['w_inside']
         x_0_weight[:,occ.numpy() <= 0] *= self.cfg['train']['w_outside']

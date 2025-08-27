@@ -31,7 +31,7 @@ from .designer.base import Base as DesignerBase
 
 from sap.config_dataclass import SAPConfig
 
-from tensorboard_logger import tensorboard_logger
+# from tensorboard_logger import tensorboard_logger
 
 def normalize_to_unit_box(points: torch.Tensor):
     """
@@ -65,10 +65,10 @@ class SoftzooSimulation(BaseCond):
         super(SoftzooSimulation, self).__init__(grad_scale,calc_gradient)
         self.sap = CustomSAP(
             sap_config,
-            device = torch.device('cuda:1' if config.non_taichi_device == 'torch_gpu' else 'cpu')
+            device = torch.device(sap_config['device'])
         )
         self.config = config
-        self.torch_device = 'cuda:0' if config.non_taichi_device == 'torch_gpu' else 'cpu'
+        self.torch_device = config.device
         self.grad_clamp = grad_clamp
         
         random.seed(config.seed)
@@ -181,8 +181,8 @@ class SoftzooSimulation(BaseCond):
     def calculate_gradient(
         self, 
         x: torch.Tensor, t: torch.Tensor,
-        p_mean_var:Dict[str,torch.Tensor],
-        diffusion:GaussianDiffusion, 
+        # p_mean_var:Dict[str,torch.Tensor],
+        # diffusion:GaussianDiffusion, 
         **model_kwargs
     ) -> torch.Tensor:
         # x is shaped (B*2, C, N)
@@ -196,32 +196,40 @@ class SoftzooSimulation(BaseCond):
             if 'original_ts' in model_kwargs:
                 t = model_kwargs['original_ts']
             
-            pred_xstart = diffusion._predict_xstart_from_eps(
-                x,t,
-                p_mean_var['eps']
-            )
-            pos = pred_xstart[:B//2,:3]
+            # pred_xstart = diffusion._predict_xstart_from_eps(
+            #     x,t,
+            #     p_mean_var['eps']
+            # )
+            pred_xstart = x
             
+            pos = pred_xstart[:B//2,:3]
             for i,t_sample in zip(range(B//2),t.tolist()):
-                x_0 = pos[i].permute(0,1) # (N,3)
+                x_0 = pos[i].T.clone().detach() # (N,3), device cuda:1
                 dense_gripper = self.sap.dense_sample(
                     x_0,
                     iter_idx = t_sample,
                     batch_idx = i,
                     save_res = True
-                )
+                ) # (M,3), device cuda:1        
                 dense_gripper.requires_grad = True
                 
-                ep_reward = self.forward_sim(t_sample,dense_gripper)
+                ep_reward = self.forward_sim(t_sample,dense_gripper) # gripper: cpu(design) -> cuda:0 (env)
                 all_loss,grad,grad_name_control = self.backward_sim()
                 cur_loss.append(all_loss[-1])
                 
                 if self.calc_gradient:
                     #TODO: Apply grad here back to x
                     self.designer.out_cache['geometry'].backward(gradient=grad[None]['self.env.design_space.buffer.geometry'])
-                    if not torch.isnan(x.grad.sum()):
+                    if not torch.isnan(dense_gripper.grad.sum()):
+                        x_0_grad = self.sap.calculate_x0_grad(
+                            dense_gripper = dense_gripper,      # cuda:1
+                            dense_gradients=dense_gripper.grad, # cuda:1
+                            surface_gripper=x_0                 # cuda:1  
+                        )
+                        pos[i].backward(gradient=x_0_grad.T) # x_0_grad: (N,3), pos[i]: (3,N)
                         accum_grad[i,:3] = x.grad[i,:3]
-                        accum_grad[i+B//2,:3] = x.grad[i,:3]
+                        # accum_grad[i+B//2,:3] = x.grad[i,:3]
+                        x.grad.zero_()            
                     else:
                         # TODO: Fix problem here where nan sometimes occur in simulation
                         print("Warning!!!: Got nan",t)
@@ -229,10 +237,10 @@ class SoftzooSimulation(BaseCond):
         self.grad_lst.append(accum_grad)
         self.loss_lst.append(cur_loss)      
         
-        tensorboard_logger.log_scalar("Simulation_Grad/Loss",cur_loss.mean())
+        # tensorboard_logger.log_scalar("Simulation_Grad/Loss",cur_loss.mean())
         scaled_gradient = torch.clamp(-accum_grad*self.grad_scale,min = -self.grad_clamp,max=self.grad_clamp)
-        tensorboard_logger.log_scalar("Simulation_Grad/GradientNorm",scaled_gradient.view(-1).norm(2))
-        tensorboard_logger.increment_step()
+        # tensorboard_logger.log_scalar("Simulation_Grad/GradientNorm",scaled_gradient.view(-1).norm(2))
+        # tensorboard_logger.increment_step()
   
         return scaled_gradient
         
@@ -348,27 +356,32 @@ if __name__=='__main__':
     import numpy as np
     import open3d as o3d
     
-    config = SoftzooSimulation.load_config('custom_cfg.yaml')
-    sim = SoftzooSimulation(config,0.3,True)
+    full_config,sap_config = SoftzooSimulation.load_config(
+        cfg_path = 'config/softzoo_config.yaml',
+        sap_cfg_path = 'config/sap_config.yaml'
+    )
+    cond_cls = SoftzooSimulation(
+        config = full_config,
+        sap_config= sap_config,
+        grad_scale=1e-1,
+        calc_gradient=True,
+        grad_clamp=1e-2
+    )
     
     loaded_pcd = np.load('sample_generated_pcd.npz')
-    x = torch.from_numpy(loaded_pcd['coords']).detach()
-    pcd = o3d.io.read_point_cloud('hand.pcd')
-    x_hand=torch.from_numpy(np.array(pcd.points)).requires_grad_(True)
+    x = torch.from_numpy(loaded_pcd['coords']).detach().to(sap_config['device'])
+    # pcd = o3d.io.read_point_cloud('hand.pcd')
+    # x_hand=torch.from_numpy(np.array(pcd.points)).requires_grad_(True)
 
     
     x = x.permute(1,0)
-    x_hand = normalize_to_unit_box(x_hand).permute(1,0)
+    # x_hand = normalize_to_unit_box(x_hand).permute(1,0)
     x = torch.stack([
-        # (torch.randn((3,4096))*0.5).requires_grad_(True),
-        # (torch.randn((3,4096))*0.5).requires_grad_(True),
-        x[:,:3393].detach().clone().requires_grad_(True),
-        x_hand.detach().clone().requires_grad_(True),
-        x[:,:3393].detach().clone().requires_grad_(True),
-        x_hand.detach().clone().requires_grad_(True),
-        
+        x.detach().clone().requires_grad_(True),
+        x.detach().clone().requires_grad_(True),
     ],dim=0)
-    
-    sim.calculate_gradient(x,torch.tensor([0,0,0]))
+
+    scaled_grad = cond_cls.calculate_gradient(x,torch.tensor([0,0,0]))
+    print(scaled_grad)
     
     

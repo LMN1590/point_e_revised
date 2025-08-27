@@ -11,6 +11,7 @@ from sap.config_dataclass import SAPConfig
 from sap.utils.schedule_utils import StepLearningRateSchedule,adjust_learning_rate
 from sap.utils.optimizer_utils import update_optimizer
 from sap.utils.mesh_pc_utils import sample_pc_in_mesh
+from sap.utils.gradient_utils import gaussian_kernel
 from sap.optimization import Trainer
 
 class CustomSAP:
@@ -22,6 +23,11 @@ class CustomSAP:
         # x_0: (N,3)
         data = self._preprocess(x_0)
         inputs = self._prepare_input()
+        
+        if self.sap_config['train']['exp_mesh'] and save_res:
+            os.makedirs(self.sap_config['train']['dir_mesh'],exist_ok=True)
+        if self.sap_config['train']['exp_pcl'] and save_res:
+            os.makedirs(self.sap_config['train']['dir_pcl'],exist_ok=True)
         
         input_scheduler = StepLearningRateSchedule(
             initial = self.sap_config['train']['schedule']['initial'],
@@ -76,7 +82,7 @@ class CustomSAP:
                 os.path.join(self.sap_config['train']['dir_pcl'],f'pcd_{iter_idx}_{batch_idx}.ply'),
                 pcd
             )
-        return torch.from_numpy(np.array(pcd.points)).float()
+        return torch.from_numpy(np.array(pcd.points)).float().to(self.device)
         
     def _preprocess(self,points:torch.Tensor):
         # points: (N,3)
@@ -109,3 +115,13 @@ class CustomSAP:
         inputs.requires_grad = True
         
         return inputs
+    
+    def calculate_x0_grad(
+        self,
+        dense_gripper:torch.Tensor, dense_gradients:torch.Tensor,
+        surface_gripper:torch.Tensor,
+    ):
+        assert dense_gripper.shape == dense_gradients.shape
+        gradient_matrix = gaussian_kernel(surface_gripper, dense_gripper, alpha=self.sap_config['gradient_alpha'])
+        return gradient_matrix @ dense_gradients
+        

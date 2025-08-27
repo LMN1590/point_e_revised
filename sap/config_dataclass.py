@@ -52,3 +52,6 @@ class SAPConfig(TypedDict):
     train:TrainConfig
     data:DataConfig
     sample:SampleConfig
+    
+    device:str
+    gradient_alpha:float
