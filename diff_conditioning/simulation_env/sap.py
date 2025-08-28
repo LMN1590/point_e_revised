@@ -19,15 +19,10 @@ class CustomSAP:
         self.sap_config = config
         self.device = device
     
-    def dense_sample(self,x_0:torch.Tensor,iter_idx:int,batch_idx:int,save_res:bool):
+    def dense_sample(self,x_0:torch.Tensor,batch_idx:int,sampling_step:int, local_iter:int):
         # x_0: (N,3)
         data = self._preprocess(x_0)
         inputs = self._prepare_input()
-        
-        if self.sap_config['train']['exp_mesh'] and save_res:
-            os.makedirs(self.sap_config['train']['dir_mesh'],exist_ok=True)
-        if self.sap_config['train']['exp_pcl'] and save_res:
-            os.makedirs(self.sap_config['train']['dir_pcl'],exist_ok=True)
         
         input_scheduler = StepLearningRateSchedule(
             initial = self.sap_config['train']['schedule']['initial'],
@@ -67,9 +62,9 @@ class CustomSAP:
                         trainer = Trainer(self.sap_config, optimizer, device=self.device)
 
         mesh = trainer.export_mesh(inputs,data['center'].cpu().numpy(), data['scale'].cpu().numpy()*(1/0.9)) 
-        if self.sap_config['train']['exp_mesh'] and save_res:
+        if self.sap_config['train']['exp_mesh'] and sampling_step%self.sap_config['save_every_iter']==0:
             o3d.io.write_triangle_mesh(
-                os.path.join(self.sap_config['train']['dir_mesh'],f'mesh_{iter_idx}_{batch_idx}.ply'),
+                os.path.join(self.sap_config['train']['dir_mesh'],f'mesh_Batch_{batch_idx}_Sampling_{sampling_step}_Local_{local_iter}_Loss{loss:.4f}.ply'),
                 mesh
             )
         pcd = sample_pc_in_mesh(
@@ -77,12 +72,12 @@ class CustomSAP:
             density=self.sap_config['sample']['density'], 
             voxel_size=self.sap_config['sample']['voxel_size']
         )
-        if self.sap_config['train']['exp_pcl'] and save_res:
+        if self.sap_config['train']['exp_pcl'] and sampling_step%self.sap_config['save_every_iter']==0:
             o3d.io.write_point_cloud(
-                os.path.join(self.sap_config['train']['dir_pcl'],f'pcd_{iter_idx}_{batch_idx}.ply'),
+                os.path.join(self.sap_config['train']['dir_pcl'],f'pcd_Batch_{batch_idx}_Sampling_{sampling_step}_Local_{local_iter}_Loss{loss:.4f}.ply'),
                 pcd
             )
-        return torch.from_numpy(np.array(pcd.points)).float().to(self.device)
+        return torch.from_numpy(np.array(pcd.points)).float().to(self.device), loss
         
     def _preprocess(self,points:torch.Tensor):
         # points: (N,3)

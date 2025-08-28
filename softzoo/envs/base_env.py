@@ -144,12 +144,12 @@ class BaseEnv(Env):
         print(f'M substeps: {self.sim.solver.max_substeps}')
         print(f'M substeps (local): {self.sim.solver.max_substeps_local}')
         
-    def reset(self, design=None):
+    def reset(self, design=None,batch_idx:int=0,sampling_step:int=0,local_iter:int=0,save_cur_iter:bool=False):
         self.frame_idx = 0
         self.sim.reset()
         self.design_space.reset()
         if self.cfg.ENVIRONMENT.use_renderer:
-            self.renderer.reset()
+            self.renderer.reset(batch_idx,sampling_step,local_iter,save_cur_iter)
         if design is not None:
             self.design_space.set_design(design)
         self.design_space.reset_orientation_data()

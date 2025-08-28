@@ -113,50 +113,15 @@ class TrainingLogger:
         self.close()
 
 # Quick setup for your existing training code
-def quick_tensorboard_setup(experiment_name="training"):
+def quick_tensorboard_setup(experiment_name:str,log_dir:str):
     """Quick setup function for existing training code"""
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
     log_dir = f"runs/{experiment_name}_{timestamp}"
     writer = TrainingLogger(log_dir,experiment_name)
     
-    print(f"📊 TensorBoard logging to: {log_dir}")
-    print(f"🌐 To view, run in terminal:")
-    print(f"    tensorboard --logdir=runs --port=6006")
-    print(f"🔗 Then open: http://localhost:6006")
-    
     return writer
 
-# Integration template for your existing code
-"""
-# Add this to your training script:
-
-# At the top of your script
-from torch.utils.tensorboard import SummaryWriter
-writer = quick_tensorboard_setup("my_training")
-
-# In your training loop
-step = 0
-for epoch in range(num_epochs):
-    for batch in dataloader:
-        # ... your existing training code ...
-        
-        loss.backward()
-        
-        # Log metrics
-        writer.add_scalar('Loss/Train', loss.item(), step)
-        
-        # Log gradients (every N steps to avoid slowdown)
-        if step % 10 == 0:
-            for name, param in model.named_parameters():
-                if param.grad is not None:
-                    writer.add_histogram(f'Gradients/{name}', param.grad, step)
-                    writer.add_scalar(f'GradientNorms/{name}', param.grad.norm().item(), step)
-        
-        optimizer.step()
-        step += 1
-
-# Close writer when done
-writer.close()
-"""
-
-tensorboard_logger = quick_tensorboard_setup("hand_grad_ddim256_scale1e-1_k5_thresh96_grippingloss_onhand_frame75_clamp1e-2")
+def init_tensorboard_logger(exp_name:str, tensorboard_log_dir:str):
+    """Initialize TensorBoard logger"""
+    global TENSORBOARD_LOGGER
+    TENSORBOARD_LOGGER = quick_tensorboard_setup(exp_name,log_dir=tensorboard_log_dir)

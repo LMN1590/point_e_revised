@@ -150,7 +150,7 @@ class GLRenderer(BaseRenderer):
 
         flex_renderer.set_camera_params(self.camera_position * self._rendering_scale, self.camera_angle)
 
-    def reset(self):
+    def reset(self,batch_idx:int,sampling_step:int,local_iter:int, save_cur_iter:bool):
         # Reset dump data
         if self.dump_data:
             self.dump_data_dir = os.path.join(self.out_dir, f'Ep_{self.count:04d}')

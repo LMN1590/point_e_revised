@@ -68,11 +68,11 @@ class AquaticEnvironment(BaseEnv):
         new_x = self.sim.device.clone(self.sim.apply('get', 'x', s=reset_s))
         self.sim.initial_state['x'] = self.sim.initial_state['x'] * (1 - self.matter_mask) + new_x * self.matter_mask # only reset matter x
     
-    def reset(self, design=None):
+    def reset(self, design=None,batch_idx:int=0,sampling_step:int=0,local_iter:int=0,save_cur_iter:bool=False):
         reset_s = 0
 
         # Default reset
-        obs = super().reset(design)
+        obs = super().reset(design,batch_idx,sampling_step,local_iter,save_cur_iter)
 
         # Randomize terrain
         if self.cfg.ENVIRONMENT.CUSTOM.randomize_terrain:

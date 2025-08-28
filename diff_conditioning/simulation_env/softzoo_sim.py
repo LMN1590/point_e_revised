@@ -8,7 +8,7 @@ from yaml import safe_load
 import os
 import shutil
 import json
-from typing import Dict, List, Tuple
+from typing import Dict, List, Tuple,Union
 from tqdm import tqdm
 
 from softzoo.configs.config_dataclass import FullConfig
@@ -30,8 +30,7 @@ from .designer.generated_pointe import GeneratedPointEPCD
 from .designer.base import Base as DesignerBase
 
 from sap.config_dataclass import SAPConfig
-
-# from tensorboard_logger import tensorboard_logger
+from tensorboard_logger import TENSORBOARD_LOGGER as tensorboard_logger
 
 def normalize_to_unit_box(points: torch.Tensor):
     """
@@ -62,18 +61,13 @@ class SoftzooSimulation(BaseCond):
         grad_scale:float, calc_gradient:bool = False,
         grad_clamp:float = 1e-2
     ):
-        super(SoftzooSimulation, self).__init__(grad_scale,calc_gradient)
+        super(SoftzooSimulation, self).__init__(grad_scale,calc_gradient,grad_clamp)
         self.sap = CustomSAP(
             sap_config,
             device = torch.device(sap_config['device'])
         )
         self.config = config
-        self.torch_device = config.device
-        self.grad_clamp = grad_clamp
-        
-        random.seed(config.seed)
-        np.random.seed(config.seed)
-        torch.manual_seed(config.torch_seed)
+        self.torch_device = config.design_device
         
         ti.init(arch=ti.cuda, device_memory_fraction=config.device_memory_fraction, random_seed = config.seed)
         
@@ -140,34 +134,25 @@ class SoftzooSimulation(BaseCond):
         return default_cfg|controller_cfg|designer_cfg
     
     @classmethod
-    def load_config(cls,cfg_path:str,sap_cfg_path:str)->Tuple[FullConfig,SAPConfig]:
-        with open(cfg_path) as f:
-            cfg = safe_load(f)
-        with open(sap_cfg_path) as f:
-            sap_cfg = safe_load(f)
+    def load_config(cls,cfg_item:Union[str,Dict])->FullConfig:
+        if isinstance(cfg_item,str):
+            with open(cfg_item) as f:
+                cfg = safe_load(f)
+            return cls.load_config(cfg)
+        else:
+            default_cfg = cls._load_default_config()
+            return FullConfig(**(default_cfg|cfg_item)) 
         
-        default_cfg = cls._load_default_config()
-        
-        return FullConfig(**(default_cfg|cfg)), sap_cfg
     # endregion
     
     def _init_checkpointing(self,config:FullConfig):
         # region Checkpointing
         ckpt_root_dir = os.path.join(config.out_dir, 'ckpt')
         os.makedirs(ckpt_root_dir, exist_ok=True)
-        self.design_dir = None
-        self.ckpt_dir_designer = None
         self.ckpt_dir_controller = None
         if config.optimize_designer or config.save_designer:
             self.design_dir = os.path.join(config.out_dir, 'design')
             os.makedirs(self.design_dir, exist_ok=True)
-
-            self.ckpt_dir_designer = os.path.join(ckpt_root_dir, 'designer')
-            os.makedirs(self.ckpt_dir_designer, exist_ok=True)
-
-        if config.optimize_controller or config.save_controller:
-            self.ckpt_dir_controller = os.path.join(ckpt_root_dir, 'controller')
-            os.makedirs(self.ckpt_dir_controller, exist_ok=True)
 
         with open(os.path.join(ckpt_root_dir, 'args.json'), 'w') as fp:
             json.dump(vars(config), fp, indent=4, sort_keys=True)
@@ -181,39 +166,45 @@ class SoftzooSimulation(BaseCond):
     def calculate_gradient(
         self, 
         x: torch.Tensor, t: torch.Tensor,
-        # p_mean_var:Dict[str,torch.Tensor],
-        # diffusion:GaussianDiffusion, 
+        p_mean_var:Dict[str,torch.Tensor],
+        diffusion:GaussianDiffusion,
+        local_iter:int, 
         **model_kwargs
     ) -> torch.Tensor:
         # x is shaped (B*2, C, N)
         
         x = x.detach().requires_grad_(True)
-        # x.retain_grad()
         B = x.shape[0]
         cur_loss = []
+        sap_loss_lst = []
         accum_grad = torch.zeros_like(x)
         with torch.enable_grad():
             if 'original_ts' in model_kwargs:
                 t = model_kwargs['original_ts']
             
-            # pred_xstart = diffusion._predict_xstart_from_eps(
-            #     x,t,
-            #     p_mean_var['eps']
-            # )
-            pred_xstart = x
+            pred_xstart = diffusion._predict_xstart_from_eps(
+                x,t,
+                p_mean_var['eps']
+            )
             
             pos = pred_xstart[:B//2,:3]
             for i,t_sample in zip(range(B//2),t.tolist()):
                 x_0 = pos[i].T.clone().detach() # (N,3), device cuda:1
-                dense_gripper = self.sap.dense_sample(
+                dense_gripper,sap_loss = self.sap.dense_sample(
                     x_0,
-                    iter_idx = t_sample,
                     batch_idx = i,
-                    save_res = True
+                    sampling_step = t_sample,
+                    local_iter = local_iter
                 ) # (M,3), device cuda:1        
+                sap_loss_lst.append(sap_loss)
                 dense_gripper.requires_grad = True
                 
-                ep_reward = self.forward_sim(t_sample,dense_gripper) # gripper: cpu(design) -> cuda:0 (env)
+                ep_reward = self.forward_sim(
+                    dense_gripper,
+                    batch_idx = i, 
+                    sampling_step=t_sample,
+                    local_iter = local_iter
+                ) # gripper: cpu(design) -> cuda:0 (env)
                 all_loss,grad,grad_name_control = self.backward_sim()
                 cur_loss.append(all_loss[-1])
                 
@@ -233,14 +224,17 @@ class SoftzooSimulation(BaseCond):
                     else:
                         # TODO: Fix problem here where nan sometimes occur in simulation
                         print("Warning!!!: Got nan",t)
+                        
+        sap_loss_lst = np.array(sap_loss_lst)
         cur_loss = np.array(cur_loss)
         self.grad_lst.append(accum_grad)
         self.loss_lst.append(cur_loss)      
         
-        # tensorboard_logger.log_scalar("Simulation_Grad/Loss",cur_loss.mean())
+        tensorboard_logger.log_scalar("Simulation_Grad/Loss",cur_loss.mean())
+        tensorboard_logger.log_scalar("Simulation_Grad/SAP_Loss",sap_loss_lst.mean())
         scaled_gradient = torch.clamp(-accum_grad*self.grad_scale,min = -self.grad_clamp,max=self.grad_clamp)
-        # tensorboard_logger.log_scalar("Simulation_Grad/GradientNorm",scaled_gradient.view(-1).norm(2))
-        # tensorboard_logger.increment_step()
+        tensorboard_logger.log_scalar("Simulation_Grad/GradientNorm",scaled_gradient.view(-1).norm(2))
+        tensorboard_logger.increment_step()
   
         return scaled_gradient
         
@@ -249,8 +243,11 @@ class SoftzooSimulation(BaseCond):
     
     # region Simulation
     def forward_sim(
-        self, it:int,
-        gripper_pos_tensor:torch.Tensor
+        self,
+        gripper_pos_tensor:torch.Tensor,
+        batch_idx:int,
+        sampling_step:int,
+        local_iter:int
     ):
         self.designer.reset()
         designer_out = self.designer(gripper_pos_tensor)
@@ -258,22 +255,26 @@ class SoftzooSimulation(BaseCond):
         for design_type in self.config.set_design_types:
             if design_type == 'actuator_direction': assert getattr(self.designer,'has_actuator_direction',False)
             design[design_type] = designer_out[design_type]
-        obs = self.env.reset(design)
+        obs = self.env.reset(
+            design, batch_idx,
+            sampling_step,local_iter,
+            save_cur_iter = sampling_step%self.config.render_every_iter==0
+        )
         self.controller.reset()
         ep_reward = 0.
         
         loss_reset_kwargs = {k: {} for k in self.config.loss_types}
         self.loss_set.reset(loss_reset_kwargs)
         
-        if self.config.optimize_designer and (it%self.config.render_every_iter==0):
+        if self.config.optimize_designer and (sampling_step%self.config.render_every_iter==0):
             if 'particle_based_representation' in str(self.env.design_space):
                 for design_type in self.config.optimize_design_types:
-                    design_fpath = os.path.join(self.design_dir, f'{design_type}_{it:04d}.pcd')
+                    design_fpath = os.path.join(self.design_dir, f'{design_type}_{sampling_step:04d}.pcd')
                     design_pcd = self.designer.save_pcd(design_fpath, design, design_type)
-                save_pcd_to_mesh(os.path.join(self.design_dir, f'mesh_{it:04d}.ply'), design_pcd)
+                save_pcd_to_mesh(os.path.join(self.design_dir, f'mesh_{sampling_step:04d}.ply'), design_pcd)
             elif 'voxel_based_representation' in str(self.env.design_space):
                 for design_type in self.config.optimize_design_types:
-                    design_fpath = os.path.join(self.design_dir, f'{design_type}_{it:04d}.ply')
+                    design_fpath = os.path.join(self.design_dir, f'{design_type}_{sampling_step:04d}.ply')
                     self.designer.save_voxel_grid(design_fpath, design, design_type)
             else:
                 raise NotImplementedError
@@ -306,7 +307,7 @@ class SoftzooSimulation(BaseCond):
                 obs, reward, done, info = self.env.step(act,fixed_v)
             ep_reward += reward
 
-            if self.env.has_renderer and (it % self.config.render_every_iter == 0):
+            if self.env.has_renderer and (sampling_step % self.config.render_every_iter == 0):
                 if 'TrajectoryFollowingLoss' in self.config.loss_types: # plot trajectory
                     self.env.renderer.scene.particles(self.traj, radius=0.003)
 
@@ -314,12 +315,6 @@ class SoftzooSimulation(BaseCond):
                     self.env.objective.render()
 
                 self.env.render()
-
-            # if (it % self.config.save_every_iter == 0):
-            #     if self.config.optimize_designer or self.config.save_designer:
-            #         designer.save_checkpoint(os.path.join(self.ckpt_dir_designer, f'iter_{it:04d}.ckpt'))
-            #     if self.config.optimize_controller or self.config.save_controller:
-            #         self.controller.save_checkpoint(os.path.join(self.ckpt_dir_controller, f'iter_{it:04d}.ckpt'))
 
             if done:
                 break

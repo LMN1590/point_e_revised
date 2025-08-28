@@ -6,9 +6,10 @@ from point_e.diffusion.gaussian_diffusion import GaussianDiffusion
 from point_e.diffusion.diff_utils import _extract_into_tensor
 
 class BaseCond:
-    def __init__(self, grad_scale:float, calc_gradient:bool = False,*args):
+    def __init__(self, grad_scale:float, calc_gradient:bool = False, grad_clamp:float = 1e-2,*args):
         self.calc_gradient = calc_gradient
         self.grad_scale = grad_scale
+        self.grad_clamp = grad_clamp
         self.loss_lst = []
         self.grad_lst = []
     

@@ -227,9 +227,11 @@ class GaussianDiffusion:
                 self._predict_xstart_from_xprev(x_t=x, t=t, xprev=model_output)
             )
             model_mean = model_output
+            model_eps = self._predict_eps_from_xstart(x, t, pred_xstart)
         elif self.model_mean_type in ["x_start", "epsilon"]:
             if self.model_mean_type == "x_start":
                 pred_xstart = process_xstart(model_output)
+                model_eps = self._predict_eps_from_xstart(x, t, pred_xstart)
             else:
                 pred_xstart = process_xstart(
                     self._predict_xstart_from_eps(x_t=x, t=t, eps=model_output)
@@ -273,7 +275,7 @@ class GaussianDiffusion:
     # endregion
     
     # region Condtion Operation
-    def condition_mean(self, cond_fn:Callable[...,th.Tensor], p_mean_var:Dict[str,th.Tensor], x:th.Tensor, t:th.Tensor, model_kwargs=None):
+    def condition_mean(self, cond_fn:Callable[...,th.Tensor], p_mean_var:Dict[str,th.Tensor], x:th.Tensor, t:th.Tensor, local_iter:int, model_kwargs=None):
         """
         Compute the mean for the previous step, given a function cond_fn that
         computes the gradient of a conditional log probability with respect to
@@ -286,12 +288,13 @@ class GaussianDiffusion:
         condition_kwargs = model_kwargs.copy()
         condition_kwargs['diffusion'] = self if "diffusion" not in condition_kwargs else condition_kwargs['diffusion']
         condition_kwargs['p_mean_var'] = p_mean_var
+        condition_kwargs['local_iter'] = local_iter
         
         gradient = cond_fn(x, t, **condition_kwargs)
         new_mean = p_mean_var["mean"].float() + p_mean_var["variance"] * gradient.float()
         return new_mean
 
-    def condition_score(self, cond_fn:Callable[...,th.Tensor], p_mean_var:Dict[str,th.Tensor], x:th.Tensor, t:th.Tensor, model_kwargs=None):
+    def condition_score(self, cond_fn:Callable[...,th.Tensor], p_mean_var:Dict[str,th.Tensor], x:th.Tensor, t:th.Tensor, local_iter:int, model_kwargs=None):
         """
         Compute what the p_mean_variance output would have been, should the
         model's score function be conditioned by cond_fn.
@@ -305,15 +308,17 @@ class GaussianDiffusion:
         """
         alpha_bar = _extract_into_tensor(self.alphas_cumprod, t, x.shape)
 
-        eps = self._predict_eps_from_xstart(x, t, p_mean_var["pred_xstart"])
+        eps = p_mean_var["eps"]
         condition_kwargs = model_kwargs.copy()
         condition_kwargs['diffusion'] = self if "diffusion" not in condition_kwargs else condition_kwargs['diffusion']
         condition_kwargs['p_mean_var'] = p_mean_var
+        condition_kwargs['local_iter'] = local_iter
         eps = eps - (1 - alpha_bar).sqrt() * cond_fn(x, t, **condition_kwargs)
 
         out = p_mean_var.copy()
         out["pred_xstart"] = self._predict_xstart_from_eps(x, t, eps)
         out["mean"], _, _ = self.q_posterior_mean_variance(x_start=out["pred_xstart"], x_t=x, t=t)
+        out['eps'] = eps
         return out
     # endregion
     
@@ -359,8 +364,11 @@ class GaussianDiffusion:
         )  # no noise when t == 0
         sample = x
         if cond_fn is not None and t[0]<=self.condition_threshold:
-            for _ in tqdm(range(self.k),desc = f"Current iter {t[0].item()}"):
-                out["mean"] = self.condition_mean(cond_fn, out, sample, t, model_kwargs=model_kwargs)
+            for local_iter in tqdm(range(self.k),desc = f"Current iter {t[0].item()}"):
+                out["mean"] = self.condition_mean(
+                    cond_fn, out, sample, t, 
+                    local_iter = local_iter, model_kwargs=model_kwargs
+                )
                 noise = th.randn_like(x)
                 sample = out["mean"] + nonzero_mask * th.exp(0.5 * out["log_variance"]) * noise
         else:
@@ -493,69 +501,88 @@ class GaussianDiffusion:
             denoised_fn=denoised_fn,
             model_kwargs=model_kwargs,
         )
-        if cond_fn is not None:
-            out = self.condition_score(cond_fn, out, x, t, model_kwargs=model_kwargs)
+        sample = x
+        if cond_fn is not None and t[0]<=self.condition_threshold:
+            for local_iter in tqdm(range(self.k),desc = f"Current iter {t[0].item()}"):
+                out = self.condition_score(
+                    cond_fn, out, sample, t, 
+                    local_iter = local_iter, model_kwargs=model_kwargs
+                )
+                alpha_bar = _extract_into_tensor(self.alphas_cumprod, t, x.shape)
+                alpha_bar_prev = _extract_into_tensor(self.alphas_cumprod_prev, t, x.shape)
+                sigma = (
+                    eta
+                    * th.sqrt((1 - alpha_bar_prev) / (1 - alpha_bar))
+                    * th.sqrt(1 - alpha_bar / alpha_bar_prev)
+                )
+                # Equation 12.
+                noise = th.randn_like(x)
+                mean_pred = (
+                    out["pred_xstart"] * th.sqrt(alpha_bar_prev)
+                    + th.sqrt(1 - alpha_bar_prev - sigma**2) * out['eps']
+                )
+                nonzero_mask = (
+                    (t != 0).float().view(-1, *([1] * (len(x.shape) - 1)))
+                )  # no noise when t == 0
+                sample = mean_pred + nonzero_mask * sigma * noise
+        else:
+            alpha_bar = _extract_into_tensor(self.alphas_cumprod, t, x.shape)
+            alpha_bar_prev = _extract_into_tensor(self.alphas_cumprod_prev, t, x.shape)
+            sigma = (
+                eta
+                * th.sqrt((1 - alpha_bar_prev) / (1 - alpha_bar))
+                * th.sqrt(1 - alpha_bar / alpha_bar_prev)
+            )
+            # Equation 12.
+            noise = th.randn_like(x)
+            mean_pred = (
+                out["pred_xstart"] * th.sqrt(alpha_bar_prev)
+                + th.sqrt(1 - alpha_bar_prev - sigma**2) * out['eps']
+            )
+            nonzero_mask = (
+                (t != 0).float().view(-1, *([1] * (len(x.shape) - 1)))
+            )  # no noise when t == 0
+            sample = mean_pred + nonzero_mask * sigma * noise
 
-        # Usually our model outputs epsilon, but we re-derive it
-        # in case we used x_start or x_prev prediction.
-        eps = self._predict_eps_from_xstart(x, t, out["pred_xstart"])
-
-        alpha_bar = _extract_into_tensor(self.alphas_cumprod, t, x.shape)
-        alpha_bar_prev = _extract_into_tensor(self.alphas_cumprod_prev, t, x.shape)
-        sigma = (
-            eta
-            * th.sqrt((1 - alpha_bar_prev) / (1 - alpha_bar))
-            * th.sqrt(1 - alpha_bar / alpha_bar_prev)
-        )
-        # Equation 12.
-        noise = th.randn_like(x)
-        mean_pred = (
-            out["pred_xstart"] * th.sqrt(alpha_bar_prev)
-            + th.sqrt(1 - alpha_bar_prev - sigma**2) * eps
-        )
-        nonzero_mask = (
-            (t != 0).float().view(-1, *([1] * (len(x.shape) - 1)))
-        )  # no noise when t == 0
-        sample = mean_pred + nonzero_mask * sigma * noise
         return {"sample": sample, "pred_xstart": out["pred_xstart"]}
     
-    def ddim_reverse_sample(
-        self,
-        model:nn.Module,
-        x:th.Tensor,
-        t:th.Tensor,
-        clip_denoised=False,
-        denoised_fn=None,
-        cond_fn=None,
-        model_kwargs=None,
-        eta=0.0,
-    ):
-        """
-        Sample x_{t+1} from the model using DDIM reverse ODE.
-        """
-        assert eta == 0.0, "Reverse ODE only for deterministic path"
-        out = self.p_mean_variance(
-            model,
-            x,
-            t,
-            clip_denoised=clip_denoised,
-            denoised_fn=denoised_fn,
-            model_kwargs=model_kwargs,
-        )
-        if cond_fn is not None:
-            out = self.condition_score(cond_fn, out, x, t, model_kwargs=model_kwargs)
-        # Usually our model outputs epsilon, but we re-derive it
-        # in case we used x_start or x_prev prediction.
-        eps = (
-            _extract_into_tensor(self.sqrt_recip_alphas_cumprod, t, x.shape) * x
-            - out["pred_xstart"]
-        ) / _extract_into_tensor(self.sqrt_recipm1_alphas_cumprod, t, x.shape)
-        alpha_bar_next = _extract_into_tensor(self.alphas_cumprod_next, t, x.shape)
+    # def ddim_reverse_sample(
+    #     self,
+    #     model:nn.Module,
+    #     x:th.Tensor,
+    #     t:th.Tensor,
+    #     clip_denoised=False,
+    #     denoised_fn=None,
+    #     cond_fn=None,
+    #     model_kwargs=None,
+    #     eta=0.0,
+    # ):
+    #     """
+    #     Sample x_{t+1} from the model using DDIM reverse ODE.
+    #     """
+    #     assert eta == 0.0, "Reverse ODE only for deterministic path"
+    #     out = self.p_mean_variance(
+    #         model,
+    #         x,
+    #         t,
+    #         clip_denoised=clip_denoised,
+    #         denoised_fn=denoised_fn,
+    #         model_kwargs=model_kwargs,
+    #     )
+    #     if cond_fn is not None:
+    #         out = self.condition_score(cond_fn, out, x, t, model_kwargs=model_kwargs)
+    #     # Usually our model outputs epsilon, but we re-derive it
+    #     # in case we used x_start or x_prev prediction.
+    #     eps = (
+    #         _extract_into_tensor(self.sqrt_recip_alphas_cumprod, t, x.shape) * x
+    #         - out["pred_xstart"]
+    #     ) / _extract_into_tensor(self.sqrt_recipm1_alphas_cumprod, t, x.shape)
+    #     alpha_bar_next = _extract_into_tensor(self.alphas_cumprod_next, t, x.shape)
 
-        # Equation 12. reversed
-        mean_pred = out["pred_xstart"] * th.sqrt(alpha_bar_next) + th.sqrt(1 - alpha_bar_next) * eps
+    #     # Equation 12. reversed
+    #     mean_pred = out["pred_xstart"] * th.sqrt(alpha_bar_next) + th.sqrt(1 - alpha_bar_next) * eps
 
-        return {"sample": mean_pred, "pred_xstart": out["pred_xstart"]}
+    #     return {"sample": mean_pred, "pred_xstart": out["pred_xstart"]}
     
     def ddim_sample_loop(
         self,

@@ -55,3 +55,4 @@ class SAPConfig(TypedDict):
     
     device:str
     gradient_alpha:float
+    save_every_iter:int

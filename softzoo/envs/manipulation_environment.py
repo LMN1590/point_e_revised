@@ -68,11 +68,11 @@ class ManipulationEnvironment(BaseEnv):
         assert len(terrain_info) == 1, f'Only allow 1 terrain. There is {len(terrain_info)} terrain now'
         self.terrain_info = terrain_info[0]
         
-    def reset(self, design=None):
+    def reset(self, design=None,batch_idx:int=0,sampling_step:int=0,local_iter:int=0,save_cur_iter:bool=False):
         reset_s = 0
 
         # Default reset
-        obs = super().reset(design)
+        obs = super().reset(design,batch_idx,sampling_step,local_iter,save_cur_iter)
 
         # Randomize terrain
         if self.cfg.ENVIRONMENT.CUSTOM.randomize_terrain:

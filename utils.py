@@ -1,0 +1,48 @@
+import os
+
+from typing import TypedDict,Tuple
+
+from tensorboard_logger import init_tensorboard_logger
+
+class LogPathDict(TypedDict):
+    exp_dir:str
+    
+    pointe_npz_dir:str
+    pointe_ply_dir:str
+    
+    softzoo_log_dir:str
+    
+    sap_mesh_dir:str
+    sap_pcl_dir:str
+
+def init_log_dir(out_dir:str, exp_name:str, tensorboard_log_dir:str)->LogPathDict:
+    init_tensorboard_logger(exp_name,tensorboard_log_dir)
+    
+    exp_dir = os.path.join(out_dir,exp_name)
+    os.makedirs(exp_dir,exist_ok=True)
+    
+    pointe_log_dir = os.path.join(exp_dir,'pointe')
+    pointe_npz_dir = os.path.join(pointe_log_dir,'npz')
+    pointe_ply_dir = os.path.join(pointe_log_dir,'ply')
+    os.makedirs(pointe_npz_dir,exist_ok=True)
+    os.makedirs(pointe_ply_dir,exist_ok=True)
+    
+    softzoo_log_dir = os.path.join(exp_dir,'softzoo')
+    os.makedirs(softzoo_log_dir,exist_ok=True)
+    
+    sap_log_dir = os.path.join(exp_dir,'sap')
+    sap_mesh_dir = os.path.join(sap_log_dir,'mesh')
+    sap_pcl_dir = os.path.join(sap_log_dir,'pcl')
+    os.makedirs(sap_mesh_dir,exist_ok=True)
+    os.makedirs(sap_pcl_dir,exist_ok=True)
+    
+    return {
+        "exp_dir":exp_dir,
+        "pointe_npz_dir":pointe_npz_dir,
+        "pointe_ply_dir":pointe_ply_dir,
+        
+        "softzoo_log_dir":softzoo_log_dir,
+
+        "sap_mesh_dir":sap_mesh_dir,
+        "sap_pcl_dir":sap_pcl_dir
+    }

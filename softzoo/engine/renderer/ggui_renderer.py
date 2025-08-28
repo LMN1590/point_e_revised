@@ -105,13 +105,13 @@ class GGUIRenderer(BaseRenderer):
             img = (img * 255).astype(np.uint8)
             self.background_img = img
 
-    def reset(self):
+    def reset(self,batch_idx:int,sampling_step:int,local_iter:int, save_cur_iter:bool):
         # Reset video writer
         if hasattr(self, 'video_writer') and self.video_writer.warmStarted:
             self.close_video()
             self.count += 1
-        if self.save_to_video:
-            self.open_video()
+        if self.save_to_video and save_cur_iter:
+            self.open_video(batch_idx,sampling_step,local_iter)
 
         # Cache terrain plot
         for v in self.sim.solver.static_component_info:
@@ -327,8 +327,8 @@ class GGUIRenderer(BaseRenderer):
                 self.particles_info['color'][p][2] = (ti.cast(self.sim.solver.p_rho[p], self.f_dtype) / p_rho_0)
                 self.particles_info['color'][p][3] = 1. - (ti.cast(self.sim.solver.p_rho[p], self.f_dtype) / p_rho_0)
 
-    def open_video(self):
-        video_path = os.path.join(self.out_dir, f'Ep_{self.count:04d}.mp4')
+    def open_video(self,batch_idx:int,sampling_step:int,local_iter:int):
+        video_path = os.path.join(self.out_dir, f'Ep_Batch_{batch_idx}_Sampling_{sampling_step:04d}_Local_{local_iter:04d}.mp4')
         self.video_writer = get_video_writer(video_path, self.cfg.fps)
 
     def close_video(self):

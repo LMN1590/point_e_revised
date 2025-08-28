@@ -22,7 +22,7 @@ class GUIRenderer(BaseRenderer):
                           background_color=self.cfg.background_color,
                           show_gui=False)
             
-    def reset(self):
+    def reset(self,batch_idx:int,sampling_step:int,local_iter:int, save_cur_iter:bool):
         if hasattr(self, 'video_writer') and self.video_writer.warmStarted:
             self.close_video()
             self.count += 1
