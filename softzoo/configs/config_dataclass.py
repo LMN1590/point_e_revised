@@ -361,8 +361,8 @@ class DesignConfig:
 @dataclass
 class FullConfig(BaseControllerConfig,DesignConfig):
     # Seeds and Logging
-    # seed: int # 100
-    # torch_seed: int # 100
+    seed: int # 100
+    torch_seed: int # 100
     render_every_iter: int # 10
     save_every_iter: int # 10
     log_every_iter: int # 1

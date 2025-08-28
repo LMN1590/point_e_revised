@@ -1,12 +1,12 @@
 exp_name: placeholder
-seed: 42
+seed: &seed 42
 out_dir: ./logs/
 tensorboard_log_dir: runs/
 save_every_iter: &log_freq 1
 total_steps: 512 # Check diffusion_cfg to see how many steps there are in diffusion (normal diffusion + upsampler)
 
-grad_scale: 1e-2
-grad_clamp: 1e-2
+grad_scale: !!float 1e-2
+grad_clamp: !!float 1e-2
 calc_gradient: True
 
 softzoo_config:
@@ -24,8 +24,8 @@ softzoo_config:
   obj_particle_id: 2
   obj_initial_pos: [0.55, 0.4, 0.4]
 
-  # seed: 100
-  # torch_seed: 100
+  seed: *seed  # Placeholder, do not use
+  torch_seed: *seed  # Placeholder, do not use
   static_as_fixed: True
   device_memory_fraction: 0.7
 
