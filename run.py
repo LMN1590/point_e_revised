@@ -23,7 +23,7 @@ random.seed(general_config['seed'])
 np.random.seed(general_config['seed'])
 torch.manual_seed(general_config['seed'])
 
-from tensorboard_logger import TENSORBOARD_LOGGER
+from logger import TENSORBOARD_LOGGER
 # endregion
 # region Initialize Point-E models
 from point_e.diffusion.configs import diffusion_from_config
@@ -104,7 +104,7 @@ for x in tqdm(sampler.sample_batch_progressive(
             cur_pc.write_ply(f)
 
         npz_name = f"result_{general_config['total_steps']-count}_{general_config['exp_name']}.npz"
-        npz_dir = os.path.join(LOG_PATH_DICT['pointe_npz_dir'],ply_name)
+        npz_dir = os.path.join(LOG_PATH_DICT['pointe_npz_dir'],npz_name)
         cur_pc.save(npz_dir)
 
     final_sample = x

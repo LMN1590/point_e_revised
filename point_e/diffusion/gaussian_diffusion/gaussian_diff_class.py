@@ -4,6 +4,7 @@ import torch.nn as nn
 
 from typing import Sequence, Optional, Literal, Callable, Dict, Tuple, Union, Any
 from tqdm import tqdm
+import logging
 
 from .const import DIFFUSION_LOSS_TYPE,DIFFUSION_MEAN_TYPE,DIFFUSION_VAR_TYPE
 from ..diff_utils import _extract_into_tensor,normal_kl,discretized_gaussian_log_likelihood,mean_flat,approx_standard_normal_cdf
@@ -364,7 +365,8 @@ class GaussianDiffusion:
         )  # no noise when t == 0
         sample = x
         if cond_fn is not None and t[0]<=self.condition_threshold:
-            for local_iter in tqdm(range(self.k),desc = f"Current iter {t[0].item()}"):
+            for local_iter in tqdm(range(self.k),desc = f"Current sampling step {t[0].item()}",position=1,leave=False):
+                logging.info(f"Current iter {t[0].item()} - local iter {local_iter}")
                 out["mean"] = self.condition_mean(
                     cond_fn, out, sample, t, 
                     local_iter = local_iter, model_kwargs=model_kwargs

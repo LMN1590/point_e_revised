@@ -30,7 +30,8 @@ from .designer.generated_pointe import GeneratedPointEPCD
 from .designer.base import Base as DesignerBase
 
 from sap.config_dataclass import SAPConfig
-from tensorboard_logger import TENSORBOARD_LOGGER as tensorboard_logger
+from logger import TENSORBOARD_LOGGER as tensorboard_logger
+import logging
 
 def normalize_to_unit_box(points: torch.Tensor):
     """
@@ -92,19 +93,6 @@ class SoftzooSimulation(BaseCond):
             self.traj.from_numpy(traj_loss.data['traj'].to_numpy().astype(self.env.renderer.f_dtype_np)[:traj_len])
             
         self._init_checkpointing(config)
-        
-        logger = Logger(config.out_dir)
-        def time_fn(func):
-            def inner(*args, **kwargs):
-                logger.tic(func.__qualname__)
-                out = func(*args, **kwargs)
-                logger.toc(func.__qualname__)
-                return out
-            return inner
-
-        self.loss_set.compute_loss = time_fn(self.loss_set.compute_loss)
-        self.controller.update = time_fn(self.controller.update)
-        
         self.data_for_plots = dict(reward=[], loss=[])
 
     def _init_sim(self,config:FullConfig):
@@ -223,17 +211,17 @@ class SoftzooSimulation(BaseCond):
                         x.grad.zero_()            
                     else:
                         # TODO: Fix problem here where nan sometimes occur in simulation
-                        print("Warning!!!: Got nan",t)
+                        logging.warning("Warning!!!: Got nan",t)
                         
         sap_loss_lst = np.array(sap_loss_lst)
         cur_loss = np.array(cur_loss)
         self.grad_lst.append(accum_grad)
         self.loss_lst.append(cur_loss)      
         
-        tensorboard_logger.log_scalar("Simulation_Grad/Loss",cur_loss.mean())
-        tensorboard_logger.log_scalar("Simulation_Grad/SAP_Loss",sap_loss_lst.mean())
+        tensorboard_logger.log_scalar("Simulation_SoftZoo/All_Batch_SoftZoo_Loss",cur_loss.mean())
+        tensorboard_logger.log_scalar("Simulation_SAP/All_Batch_Loss",sap_loss_lst.mean())
         scaled_gradient = torch.clamp(-accum_grad*self.grad_scale,min = -self.grad_clamp,max=self.grad_clamp)
-        tensorboard_logger.log_scalar("Simulation_Grad/GradientNorm",scaled_gradient.view(-1).norm(2))
+        tensorboard_logger.log_scalar("Simulation_SoftZoo/All_Batch_GradientNorm",scaled_gradient.view(-1).norm(2))
         tensorboard_logger.increment_step()
   
         return scaled_gradient
@@ -269,9 +257,9 @@ class SoftzooSimulation(BaseCond):
         if self.config.optimize_designer and (sampling_step%self.config.render_every_iter==0):
             if 'particle_based_representation' in str(self.env.design_space):
                 for design_type in self.config.optimize_design_types:
-                    design_fpath = os.path.join(self.design_dir, f'{design_type}_{sampling_step:04d}.pcd')
+                    design_fpath = os.path.join(self.design_dir, f'{design_type}_Batch_{batch_idx}_Sampling_{sampling_step:04d}_Local_{local_iter:04d}.pcd')
                     design_pcd = self.designer.save_pcd(design_fpath, design, design_type)
-                save_pcd_to_mesh(os.path.join(self.design_dir, f'mesh_{sampling_step:04d}.ply'), design_pcd)
+                save_pcd_to_mesh(os.path.join(self.design_dir, f'mesh_Batch_{batch_idx}_Sampling_{sampling_step:04d}_Local_{local_iter:04d}.ply'), design_pcd)
             elif 'voxel_based_representation' in str(self.env.design_space):
                 for design_type in self.config.optimize_design_types:
                     design_fpath = os.path.join(self.design_dir, f'{design_type}_{sampling_step:04d}.ply')
@@ -284,7 +272,7 @@ class SoftzooSimulation(BaseCond):
         fixed_v = [0.,0.,0.]
         cur_v_idx = 0
         
-        for frame in tqdm(range(self.config.n_frames),position=1,leave=False):
+        for frame in tqdm(range(self.config.n_frames),position=2,leave=False):
             if frame >= velocities_by_frame[cur_v_idx][0]:
                 fixed_v = velocities_by_frame[cur_v_idx][1]
                 cur_v_idx +=1

@@ -9,10 +9,13 @@ import torch.nn as nn
 import torch.optim as optim
 from torch.utils.tensorboard import SummaryWriter
 import numpy as np
+
 import matplotlib.pyplot as plt
 import os
 from datetime import datetime
 import time
+import logging
+import csv
 
 class TrainingLogger:
     """Enhanced TensorBoard logger for training metrics"""
@@ -112,6 +115,26 @@ class TrainingLogger:
     def __exit__(self, *args):
         self.close()
 
+class CSVLogger:
+    def __init__(self, filepath, fieldnames):
+        self.filepath = filepath
+        self.fieldnames = fieldnames
+        # Create file + header if not exists
+        file_exists = os.path.isfile(filepath)
+        self.file = open(filepath, "a", newline="")
+        self.writer = csv.DictWriter(self.file, fieldnames=fieldnames)
+        if not file_exists:
+            self.writer.writeheader()
+
+    def log(self, row_dict):
+        """row_dict: dict matching fieldnames"""
+        self.writer.writerow(row_dict)
+        self.file.flush()  # ensures data is written immediately
+
+    def close(self):
+        self.file.close()
+
+
 # Quick setup for your existing training code
 def quick_tensorboard_setup(experiment_name:str,log_dir:str):
     """Quick setup function for existing training code"""
@@ -121,7 +144,22 @@ def quick_tensorboard_setup(experiment_name:str,log_dir:str):
     
     return writer
 
-def init_tensorboard_logger(exp_name:str, tensorboard_log_dir:str):
+def init_all_logger(out_dir:str, exp_name:str, tensorboard_log_dir:str):
     """Initialize TensorBoard logger"""
-    global TENSORBOARD_LOGGER
+    global TENSORBOARD_LOGGER,CSVLOGGER
     TENSORBOARD_LOGGER = quick_tensorboard_setup(exp_name,log_dir=tensorboard_log_dir)
+    CSVLOGGER = CSVLogger(
+        filepath = os.path.join(out_dir,exp_name,'training_log.csv'),
+        fieldnames = [
+            'sampling_step','local_iter','batch_idx','phase'
+            'sap_loss','sap_inputs_grad_norm','sap_lr','sap_num_points'
+            'softzoo_loss','softzoo_grad_norm','softzoo_reward',
+            'softzoo_mean_loss','softzoo_mean_grad_norm'
+        ]
+    )
+    logging.basicConfig(
+        filename = os.path.join(out_dir,exp_name,'training.log'),
+        filemode='a',
+        format="%(asctime)s [%(levelname)s] %(message)s",
+        level=logging.INFO
+    )

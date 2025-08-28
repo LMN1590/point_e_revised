@@ -35,7 +35,7 @@ class CustomSAP:
         start_epoch = -1
         trainer = Trainer(self.sap_config,optimizer,device=self.device)
         
-        pbar = trange(start_epoch+1, self.sap_config['train']['total_epochs']+1,desc="Training",unit=' epoch',position=1,leave=False)
+        pbar = trange(start_epoch+1, self.sap_config['train']['total_epochs']+1,desc="Training",unit=' epoch',position=2,leave=False)
         for epoch in pbar:
             # schedule the learning rate
             if epoch>0:
@@ -66,7 +66,7 @@ class CustomSAP:
         mesh = trainer.export_mesh(inputs,data['center'].cpu().numpy(), data['scale'].cpu().numpy()*(1/0.9)) 
         if self.sap_config['train']['exp_mesh'] and sampling_step%self.sap_config['save_every_iter']==0:
             o3d.io.write_triangle_mesh(
-                os.path.join(self.sap_config['train']['dir_mesh'],f'mesh_Batch_{batch_idx}_Sampling_{sampling_step}_Local_{local_iter}_Loss{loss:.4f}.ply'),
+                os.path.join(self.sap_config['train']['dir_mesh'],f'mesh_Batch_{batch_idx}_Sampling_{sampling_step}_Local_{local_iter}_Loss{loss:.5f}.ply'),
                 mesh
             )
         pcd = sample_pc_in_mesh(
@@ -76,7 +76,7 @@ class CustomSAP:
         )
         if self.sap_config['train']['exp_pcl'] and sampling_step%self.sap_config['save_every_iter']==0:
             o3d.io.write_point_cloud(
-                os.path.join(self.sap_config['train']['dir_pcl'],f'pcd_Batch_{batch_idx}_Sampling_{sampling_step}_Local_{local_iter}_Loss{loss:.4f}.ply'),
+                os.path.join(self.sap_config['train']['dir_pcl'],f'pcd_Batch_{batch_idx}_Sampling_{sampling_step}_Local_{local_iter}_Loss{loss:.5f}.ply'),
                 pcd
             )
         return torch.from_numpy(np.array(pcd.points)).float().to(self.device), loss
@@ -119,6 +119,6 @@ class CustomSAP:
         surface_gripper:torch.Tensor,
     ):
         assert dense_gripper.shape == dense_gradients.shape
-        gradient_matrix = gaussian_kernel(surface_gripper, dense_gripper, alpha=self.sap_config['gradient_alpha'])
+        gradient_matrix = gaussian_kernel(surface_gripper, dense_gripper, alpha=self.sap_config['gradient_alpha']).detach()
         return gradient_matrix @ dense_gradients
         

@@ -10,6 +10,7 @@ from sklearn.metrics import pairwise_distances_argmin
 
 from typing import TYPE_CHECKING, Dict, List, Optional, Callable, Literal,Union
 import matplotlib.pyplot as plt
+import logging
 
 from .base import Base
 from softzoo.utils.general_utils import extract_part_pca_inner,row_permutation,extract_part_pca
@@ -142,7 +143,7 @@ class GeneratedPointEPCD(Base):
         # PCA on cluster points
         cluster_center = cluster_points.mean(axis=0)
         # TODO: Fix problem here sometimes num samples < 3
-        if min(*cluster_points.shape,3)<3: print("Warning!!!: Numer of points in cluster is small <3.")
+        if min(*cluster_points.shape,3)<3: logging.warning("Warning!!!: Numer of points in cluster is small <3.")
         pca_local = PCA(n_components=min(*cluster_points.shape,3))
         pca_local.fit(cluster_points)
 
@@ -217,7 +218,7 @@ class GeneratedPointEPCD(Base):
         # visualize_point_cloud(complete_pos_tensor,complete_labels)
         unique_lbls = np.unique(complete_labels)
         if not self.env.sim.solver.n_actuators == unique_lbls.shape[0]:
-            print("Warning!!!!: \n The number of actuators must be equal to the number of generated labels. Probllem in configuration files")
+            logging.warning("Warning!!!!: \n The number of actuators must be equal to the number of generated labels. Probllem in configuration files")
         # endregion
         
         # region Calculate Actuator Direction

@@ -11,6 +11,7 @@ import skimage
 import enum
 import os
 from plyfile import PlyData
+import logging
 
 class Enum(enum.Enum):
     @classmethod
@@ -95,7 +96,7 @@ def extract_part_pca_inner(points,lbls,return_part_colors=False,within_part_clus
     all_part_pca_singular_values = dict()
     for k, part_pc_pca in all_part_pc_pca.items():
         # TODO: Fix problem here sometimes num samples < 3
-        if min(*part_pc_pca.shape,3)<3: print("Warning!!!: Numer of points in cluster is small <3.")
+        if min(*part_pc_pca.shape,3)<3: logging.warning("Warning!!!: Numer of points in cluster is small <3.")
         pca = PCA(n_components=min(*part_pc_pca.shape,3))
         pca.fit(part_pc_pca)
         all_part_pca_components[k] = pca.components_

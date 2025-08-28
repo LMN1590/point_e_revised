@@ -9,6 +9,7 @@ from pytorch3d.structures import Meshes
 from pytorch3d.renderer import PerspectiveCameras, rasterize_meshes
 
 from typing import Union
+import logging
 
 def mc_from_psr(psr_grid:torch.Tensor, pytorchify=False, real_scale=False, zero_level=0):
     '''
@@ -175,7 +176,7 @@ def sample_pc_in_mesh(mesh,num_points:int = 10000, density:float = 1.0, voxel_si
     inside_pts = pts[occ.numpy() > 0]
     
     if inside_pts.shape[0] < num_points // 2:
-        print("Warning!!! Insufficient points sampled. Mesh may not be watertight → falling back to voxelization")
+        logging.warning("Warning!!! Insufficient points sampled. Mesh may not be watertight → falling back to voxelization")
 
         # Voxelize mesh
         voxel_grid = o3d.geometry.VoxelGrid.create_from_triangle_mesh(mesh, voxel_size=voxel_size)
