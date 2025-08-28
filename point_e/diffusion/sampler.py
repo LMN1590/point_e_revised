@@ -133,7 +133,7 @@ class PointCloudSampler:
             if samples is not None:
                 # If we have samples from the low-res stage, add them as conditioning input
                 stage_model_kwargs["low_res"] = samples
-            if hasattr(model, "cached_model_kwargs"):
+            if hasattr(model, "cached_model_kwargs") and "embeddings" not in stage_model_kwargs:
                 # Overwrite the model kwargs with the processed ones
                 stage_model_kwargs = model.cached_model_kwargs(batch_size, stage_model_kwargs)
             sample_shape = (batch_size, 3 + len(self.aux_channels), stage_num_points)

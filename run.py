@@ -5,6 +5,7 @@ import random
 import yaml
 import os
 from typing import Dict
+from tqdm import tqdm
 
 from config.config_dataclass import GeneralConfig
 
@@ -22,6 +23,7 @@ LOG_PATH_DICT = init_log_dir(
 random.seed(general_config['seed'])
 np.random.seed(general_config['seed'])
 torch.manual_seed(general_config['seed'])
+#torch.Size([1, 1024, 256])
 
 from logger import TENSORBOARD_LOGGER
 # endregion
@@ -58,7 +60,7 @@ sampler = PointCloudSampler(
     num_points=num_points,
     aux_channels=['R', 'G', 'B'],
     guidance_scale=guidance_scale,
-    model_kwargs_key_filter=('images', ''), # Do not condition the upsampler at all #TODO: change this into random sampled embeddings later
+    model_kwargs_key_filter=('embeddings', ''), # Do not condition the upsampler at all #TODO: change this into random sampled embeddings later
     use_karras = (False,False)
 )
 # endregion
@@ -84,15 +86,15 @@ cond_fn_lst = [cond_cls.calculate_gradient, None]
 # endregion
 
 # region Run Sampling
-from PIL import Image
-from tqdm import tqdm
-img = Image.open('asset/hand.jpg')
+arr = np.load(general_config['embedding_path'])
+emb = torch.from_numpy(arr).to(device)
+batch_size = 1
+assert emb.shape[0] == batch_size, "Mismatched batch size!"
 
-# Produce a sample from the model.
 final_sample:torch.Tensor = None
 count = 0
 for x in tqdm(sampler.sample_batch_progressive(
-    batch_size=1, model_kwargs=dict(images=[img]),
+    batch_size=1, model_kwargs=dict(embeddings=emb),
     # pre_noise=pre_noise,
     cond_fn_lst=cond_fn_lst
 ),position=0):

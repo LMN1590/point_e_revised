@@ -9,6 +9,8 @@ grad_scale: !!float 1e-2
 grad_clamp: !!float 1e-2
 calc_gradient: True
 
+embedding_path: embeddings/embedding.npy # Path to the precomputed embeddings
+
 softzoo_config:
   out_dir: null # Placeholder, need to be set in run.py
   env_config_file: gripping_env.yaml

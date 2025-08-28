@@ -16,6 +16,8 @@ class GeneralConfig(TypedDict):
     grad_clamp: float
     calc_gradient: bool
     
+    embedding_path: str # Path to the precomputed embeddings
+    
     softzoo_config: FullConfig
     sap_config: SAPConfig
     pointe_config: PointEConfig
