@@ -228,7 +228,7 @@ class Trainer:
         n_mesh = torch.tensor(normals_i).to(self.device)[None]
 
         points, normals = pts_mesh, n_mesh
-        print('{} total points are resampled'.format(points.shape[1]))
+        # print('{} total points are resampled'.format(points.shape[1]))
     
         # update inputs
         points = torch.log(points / (1 - points)) # inverse sigmoid

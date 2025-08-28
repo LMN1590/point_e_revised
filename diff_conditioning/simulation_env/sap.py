@@ -35,18 +35,20 @@ class CustomSAP:
         start_epoch = -1
         trainer = Trainer(self.sap_config,optimizer,device=self.device)
         
-        pbar = trange(start_epoch+1, self.sap_config['train']['total_epochs']+1,desc="Training",unit=' epoch')
+        pbar = trange(start_epoch+1, self.sap_config['train']['total_epochs']+1,desc="Training",unit=' epoch',position=1,leave=False)
         for epoch in pbar:
             # schedule the learning rate
             if epoch>0:
                 if (epoch % input_scheduler.interval == 0):
                     adjust_learning_rate(input_scheduler, optimizer, epoch)
-                    # print('[epoch {}] adjust pcl_lr to: {}'.format(epoch, input_scheduler.get_learning_rate(epoch)))
-                    tqdm.write(f'[epoch {epoch}] adjust pcl_lr to: {input_scheduler.get_learning_rate(epoch):.6f}')
             
             loss, loss_each = trainer.train_step(data, inputs, None, epoch)
             
-            metrics = {"loss": f"{loss:.5f}"}
+            metrics = {
+                "loss": f"{loss:.5f}",
+                "lr": f"{optimizer.param_groups[0]['lr']:.6f}",
+                "num_points": f"{inputs.shape[1]}",
+            }
             if loss_each is not None:
                 for k, l in loss_each.items():
                     if l.item() != 0.: metrics[f"loss_{k}"] = f"{l.item():.5f}"
@@ -57,9 +59,9 @@ class CustomSAP:
                 (self.sap_config['train']['resample_every']!=0) & \
                 (epoch % self.sap_config['train']['resample_every'] == 0) & \
                 (epoch < self.sap_config['train']['total_epochs']):
-                        inputs = trainer.point_resampling(inputs)
-                        optimizer = update_optimizer(inputs,epoch=epoch, schedule=input_scheduler)
-                        trainer = Trainer(self.sap_config, optimizer, device=self.device)
+                    inputs = trainer.point_resampling(inputs)
+                    optimizer = update_optimizer(inputs,epoch=epoch, schedule=input_scheduler)
+                    trainer = Trainer(self.sap_config, optimizer, device=self.device)
 
         mesh = trainer.export_mesh(inputs,data['center'].cpu().numpy(), data['scale'].cpu().numpy()*(1/0.9)) 
         if self.sap_config['train']['exp_mesh'] and sampling_step%self.sap_config['save_every_iter']==0:

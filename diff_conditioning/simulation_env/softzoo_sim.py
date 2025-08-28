@@ -284,7 +284,7 @@ class SoftzooSimulation(BaseCond):
         fixed_v = [0.,0.,0.]
         cur_v_idx = 0
         
-        for frame in range(self.config.n_frames):
+        for frame in tqdm(range(self.config.n_frames),position=1,leave=False):
             if frame >= velocities_by_frame[cur_v_idx][0]:
                 fixed_v = velocities_by_frame[cur_v_idx][1]
                 cur_v_idx +=1
@@ -310,14 +310,11 @@ class SoftzooSimulation(BaseCond):
             if self.env.has_renderer and (sampling_step % self.config.render_every_iter == 0):
                 if 'TrajectoryFollowingLoss' in self.config.loss_types: # plot trajectory
                     self.env.renderer.scene.particles(self.traj, radius=0.003)
-
                 if hasattr(self.env.objective, 'render'):
                     self.env.objective.render()
-
                 self.env.render()
 
-            if done:
-                break
+            if done: break
         return ep_reward
     def backward_sim(self):
         grad_names:Dict[int,List] = dict()

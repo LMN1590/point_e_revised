@@ -95,7 +95,7 @@ for x in tqdm(sampler.sample_batch_progressive(
     batch_size=1, model_kwargs=dict(images=[img]),
     # pre_noise=pre_noise,
     cond_fn_lst=cond_fn_lst
-)):
+),position=0):
     if (general_config['total_steps']-count)%general_config['save_every_iter'] == 0: 
         cur_pc = sampler.output_to_point_clouds(x)[0]
         ply_name = f"result_{general_config['total_steps']-count}_{general_config['exp_name']}.ply"
