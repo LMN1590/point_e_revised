@@ -119,17 +119,21 @@ class CSVLogger:
     def __init__(self, filepath, fieldnames):
         self.filepath = filepath
         self.fieldnames = fieldnames
-        # Create file + header if not exists
-        file_exists = os.path.isfile(filepath)
-        self.file = open(filepath, "a", newline="")
+        # Always overwrite file and write header
+        self.file = open(filepath, "w", newline="")
         self.writer = csv.DictWriter(self.file, fieldnames=fieldnames)
-        if not file_exists:
-            self.writer.writeheader()
+        self.writer.writeheader()
 
     def log(self, row_dict):
-        """row_dict: dict matching fieldnames"""
-        self.writer.writerow(row_dict)
-        self.file.flush()  # ensures data is written immediately
+        # Check for unexpected keys
+        extra_keys = set(row_dict.keys()) - set(self.fieldnames)
+        if extra_keys:
+            raise KeyError(f"Unexpected keys in log: {extra_keys}")
+
+        # Fill missing keys with None
+        safe_row = {k: row_dict.get(k, None) for k in self.fieldnames}
+        self.writer.writerow(safe_row)
+        self.file.flush()
 
     def close(self):
         self.file.close()
@@ -151,8 +155,9 @@ def init_all_logger(out_dir:str, exp_name:str, tensorboard_log_dir:str):
     CSVLOGGER = CSVLogger(
         filepath = os.path.join(out_dir,exp_name,'training_log.csv'),
         fieldnames = [
-            'sampling_step','local_iter','batch_idx','phase'
-            'sap_loss','sap_inputs_grad_norm','sap_lr','sap_num_points'
+            'phase',
+            'sampling_step','local_iter','batch_idx',
+            "sap_epoch", 'sap_loss','sap_inputs_grad_norm','sap_lr','sap_num_points'
             'softzoo_loss','softzoo_grad_norm','softzoo_reward',
             'softzoo_mean_loss','softzoo_mean_grad_norm'
         ]

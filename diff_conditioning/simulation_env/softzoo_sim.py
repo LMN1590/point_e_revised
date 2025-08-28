@@ -30,7 +30,7 @@ from .designer.generated_pointe import GeneratedPointEPCD
 from .designer.base import Base as DesignerBase
 
 from sap.config_dataclass import SAPConfig
-from logger import TENSORBOARD_LOGGER as tensorboard_logger
+from logger import TENSORBOARD_LOGGER as tensorboard_logger,CSVLOGGER
 import logging
 
 def normalize_to_unit_box(points: torch.Tensor):
@@ -206,12 +206,25 @@ class SoftzooSimulation(BaseCond):
                             surface_gripper=x_0                 # cuda:1  
                         )
                         pos[i].backward(gradient=x_0_grad.T) # x_0_grad: (N,3), pos[i]: (3,N)
-                        accum_grad[i,:3] = x.grad[i,:3]
+                        cur_grad = x.grad[i,:3].clone()
+                        accum_grad[i,:3] = cur_grad
                         # accum_grad[i+B//2,:3] = x.grad[i,:3]
                         x.grad.zero_()            
                     else:
                         # TODO: Fix problem here where nan sometimes occur in simulation
                         logging.warning("Warning!!!: Got nan",t)
+                
+                CSVLOGGER.log({
+                    "phase": "SoftZoo_Simulation",
+                    
+                    "sampling_step": t_sample,
+                    "local_iter": local_iter,
+                    "batch_idx": i,
+                    
+                    "softzoo_loss": all_loss[-1],
+                    "softzoo_grad_norm": 0. if not self.calc_gradient else cur_grad.norm(2).item(),
+                    "softzoo_reward": ep_reward,
+                })
                         
         sap_loss_lst = np.array(sap_loss_lst)
         cur_loss = np.array(cur_loss)
@@ -223,6 +236,16 @@ class SoftzooSimulation(BaseCond):
         scaled_gradient = torch.clamp(-accum_grad*self.grad_scale,min = -self.grad_clamp,max=self.grad_clamp)
         tensorboard_logger.log_scalar("Simulation_SoftZoo/All_Batch_GradientNorm",scaled_gradient.view(-1).norm(2))
         tensorboard_logger.increment_step()
+        
+        CSVLOGGER.log({
+            "phase": "SoftZoo_Overall",
+            
+            "sampling_step": t.tolist()[0],
+            "local_iter": local_iter,
+            
+            "softzoo_mean_loss": cur_loss.mean(),
+            "softzoo_scaled_mean_grad_norm":scaled_gradient.view(-1).norm(2)
+        })
   
         return scaled_gradient
         

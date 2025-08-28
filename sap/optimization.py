@@ -43,7 +43,7 @@ class Trainer:
         self.dpsr = self.dpsr.to(device)
     
     # region Training Step
-    def train_step(self, data:Dict, inputs, model, it):
+    def train_step(self, data:Dict, inputs:torch.Tensor, model, it):
         ''' Performs a training step.
 
         Args:
@@ -57,9 +57,10 @@ class Trainer:
         loss, loss_each = self.compute_loss(inputs, data, model, it)
 
         loss.backward()
+        grad_norm = inputs.grad.view(-1).norm(2).item() if inputs.grad is not None else 0.0
         self.optimizer.step()
         
-        return loss.item(), loss_each
+        return loss.item(), loss_each, grad_norm
     
     def compute_loss(self, inputs:torch.Tensor, data:Dict[str,torch.Tensor], model:Optional[torch.nn.Module], it:int=0):
         '''  Compute the loss.

@@ -14,6 +14,8 @@ from sap.utils.mesh_pc_utils import sample_pc_in_mesh
 from sap.utils.gradient_utils import gaussian_kernel
 from sap.optimization import Trainer
 
+from logger import CSVLOGGER
+
 class CustomSAP:
     def __init__(self,config:SAPConfig,device:torch.device):
         self.sap_config = config
@@ -42,13 +44,30 @@ class CustomSAP:
                 if (epoch % input_scheduler.interval == 0):
                     adjust_learning_rate(input_scheduler, optimizer, epoch)
             
-            loss, loss_each = trainer.train_step(data, inputs, None, epoch)
+            loss, loss_each, grad_norm = trainer.train_step(data, inputs, None, epoch)
+            cur_lr = optimizer.param_groups[0]['lr']
             
             metrics = {
                 "loss": f"{loss:.5f}",
-                "lr": f"{optimizer.param_groups[0]['lr']:.6f}",
+                "lr": f"{cur_lr:.6f}",
                 "num_points": f"{inputs.shape[1]}",
+                "grad_norm": f"{grad_norm:.5f}"
             }
+            
+            CSVLOGGER.log({
+                "phase": "SAP_Dense_Sample",
+                
+                "sampling_step": sampling_step,
+                "local_iter": local_iter,
+                "batch_idx": batch_idx,
+                
+                'sap_epoch': epoch,
+                "sap_loss": loss,
+                "sap_inputs_grad_norm": grad_norm,
+                "sap_lr": cur_lr,
+                "sap_num_points": inputs.shape[1]
+            })
+            
             if loss_each is not None:
                 for k, l in loss_each.items():
                     if l.item() != 0.: metrics[f"loss_{k}"] = f"{l.item():.5f}"
