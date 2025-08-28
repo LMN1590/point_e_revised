@@ -244,7 +244,7 @@ class SoftzooSimulation(BaseCond):
             "local_iter": local_iter,
             
             "softzoo_mean_loss": cur_loss.mean(),
-            "softzoo_scaled_mean_grad_norm":scaled_gradient.view(-1).norm(2)
+            "softzoo_scaled_mean_grad_norm":scaled_gradient.view(-1).norm(2).item()
         })
   
         return scaled_gradient
