@@ -1,9 +1,9 @@
-exp_name: custom_normal_ddim256 #custom_emb_grad_ddim256_scale1e0_k5_thresh96_grippingloss_onhand_frame75_clamp1e-2_dense_sap_seed42
+exp_name: debug #custom_emb_grad_ddim256_scale1e0_k5_thresh96_grippingloss_onhand_frame75_clamp1e-2_dense_sap_seed42
 seed: &seed 42
 out_dir: ./logs/
 tensorboard_log_dir: runs/
 save_every_iter: &log_freq 1
-total_steps: 512 # Check diffusion_cfg to see how many steps there are in diffusion (normal diffusion + upsampler)
+total_steps: 128 # Check diffusion_cfg to see how many steps there are in diffusion (normal diffusion + upsampler)
 
 cond_config:
   - name: "SoftZoo_Sim"

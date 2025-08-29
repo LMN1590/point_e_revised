@@ -36,6 +36,9 @@ class CondSet:
         local_iter:int, 
         **model_kwargs
     )->torch.Tensor:
+        if 'original_ts' in model_kwargs:
+            t = model_kwargs['original_ts']
+        
         accum_grad = torch.zeros_like(x)
         for cond_cls in self.cond_cls:
             accum_grad += cond_cls.calculate_gradient(

@@ -43,7 +43,6 @@ class BaseCond:
             
             for i,t_sample in zip(range(B//2),t.tolist()):
                 loss = self.calculate_loss(pos[i],t,p_mean_var,diffusion,local_iter,**model_kwargs)
-                cur_loss.append(loss)
                 
                 if self.calc_gradient:
                     cur_grad = torch.autograd.grad(loss, x)[0]
@@ -57,9 +56,12 @@ class BaseCond:
                         "local_iter": local_iter,
                         "batch_idx": i,
                         
-                        'loss': loss,
+                        'loss': loss.item(),
                         'grad_norm':0. if not self.calc_gradient else cur_grad.norm(2).item()
                     })
+                if torch.is_tensor(loss):
+                    loss = loss.item()
+                cur_loss.append(loss)
 
         cur_loss = np.array(cur_loss)
         self.grad_lst.append(accum_grad)   
@@ -67,7 +69,7 @@ class BaseCond:
         scaled_gradient = torch.clamp(-accum_grad*self.grad_scale,min = -self.grad_clamp,max=self.grad_clamp)
 
         if self.logging_bool:
-            TENSORBOARD_LOGGER.log_scalar(f"{self.name}/All_Batch_SoftZoo_Loss",cur_loss.mean())
+            TENSORBOARD_LOGGER.log_scalar(f"{self.name}/All_Batch_Loss",cur_loss.mean())
             TENSORBOARD_LOGGER.log_scalar(f"{self.name}/All_Batch_GradientNorm",scaled_gradient.view(-1).norm(2))
             # TENSORBOARD_LOGGER.increment_step()
             
