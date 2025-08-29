@@ -78,7 +78,7 @@ sap_config:
   train:
     schedule:
       initial: 1e-2
-      interval: 150
+      interval: 200
       factor: 0.5
       final: 1e-3
     
