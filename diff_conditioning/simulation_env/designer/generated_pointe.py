@@ -57,7 +57,7 @@ class GeneratedPointEPCD(Base):
         gripper_extent = gripper_points_max - gripper_points_min
         gripper_base_scale = gripper_extent/base_extent
         
-        lowest_pt = find_mid_lowest_pt(gripper_pos_np,radius=0.25)
+        lowest_pt = find_mid_lowest_pt(gripper_pos_np,0.5)
     
         calibrated_base_pts = calibrate_points(
             base_points, 
@@ -277,14 +277,32 @@ class GeneratedPointEPCD(Base):
         
 
 # region Utilities
-def find_mid_lowest_pt(points:np.ndarray,radius:float = 0.05):
-    points_std = StandardScaler().fit_transform(points)
-    mean_point = points_std.mean(0)
-    dxz = points_std[:, [0, 2]] - mean_point[[0, 2]]
-    dists_xz = np.linalg.norm(dxz, axis=1)
-    mid_lowest_y = points[dists_xz < radius].min(0)[1]
-    mid_lowest_pt = points[points[:, 1] == mid_lowest_y][0]
-    return mid_lowest_pt
+def find_mid_lowest_pt(points: np.ndarray,w: float = 0.2,eps: float = 1e-8):
+    """
+    points: (N,3) numpy array
+    w: weight for centrality in XZ (0..1). higher -> more central
+    soft: if True, return virtual weighted average; else return existing argmin point
+    temperature: soft selection temperature (lower -> more peaky)
+    """
+    xyz = points
+    xz = xyz[:, [0, 2]]
+    # centroid in xz
+    center_xz = xz.mean(axis=0)
+    dists_xz = np.linalg.norm(xz - center_xz[None, :], axis=1)
+    y = xyz[:, 1]
+
+    y_min, y_max = y.min(), y.max()
+    d_max = dists_xz.max()
+
+    # normalize to [0,1], smaller is better
+    yhat = (y - y_min) / (y_max - y_min + eps)
+    yhat = np.clip(yhat, 0.0, 1.0)
+    dhat = dists_xz / (d_max + eps)
+    dhat = np.clip(dhat, 0.0, 1.0)
+    
+    score = (1.0 - w) * yhat + w * dhat
+    idx = np.argmin(score)
+    return xyz[idx]
 
 def calibrate_points(points:np.ndarray,mean:np.ndarray,flipped_x:bool = False,flipped_y:bool = False,flipped_z:bool=False,scale:Union[float,np.ndarray]=1.0):
     points_mean = points.mean(0)
