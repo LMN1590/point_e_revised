@@ -78,26 +78,44 @@ full_softzoo_config = SoftzooSimulation.load_config(
 full_softzoo_config.out_dir = LOG_PATH_DICT['softzoo_log_dir']
 general_config['sap_config']['train']['dir_mesh'] = LOG_PATH_DICT['sap_mesh_dir']
 general_config['sap_config']['train']['dir_pcl'] = LOG_PATH_DICT['sap_pcl_dir']
-cond_set = CondSet(
-    cond_config_lst = general_config['cond_config'],
-    cond_overall_logging= general_config['cond_overall_logging'],
-    softzoo_config = full_softzoo_config,
-    sap_config = general_config['sap_config']
-)
-cond_fn_lst = [cond_set.calculate_gradient,None]
+
+if general_config['cond_config'] is None or len(general_config['cond_config']) == 0:
+    cond_fn_lst = [None,None]
+else:
+    cond_set = CondSet(
+        cond_config_lst = general_config['cond_config'],
+        cond_overall_logging= general_config['cond_overall_logging'],
+        softzoo_config = full_softzoo_config,
+        sap_config = general_config['sap_config']
+    )
+    cond_fn_lst = [cond_set.calculate_gradient,None]
+    
 # endregion
 
 # region Run Sampling
-arr = np.load(general_config['embedding_path'])
-emb = torch.from_numpy(arr).to(device)
-batch_size = 1
-assert emb.shape[0] == batch_size, "Mismatched batch size!"
+preload_config = general_config['preload_emb']
+conditional_emb_npy = np.load(preload_config['condition_embedding']['path'])  \
+    if preload_config['condition_embedding']['path'] is not None \
+    else np.random.rand(*preload_config['condition_embedding']['shape'])
+conditional_emb_tensor = torch.from_numpy(conditional_emb_npy).to(device)
+
+base_noise_npy = np.load(preload_config['diffusion_noise']['path'])  \
+    if preload_config['diffusion_noise']['path'] is not None \
+    else np.random.rand(*preload_config['diffusion_noise']['shape'])
+base_noise_tensor = torch.from_numpy(base_noise_npy).to(device)
+
+upsample_noise_npy = np.load(preload_config['upsample_noise']['path'])  \
+    if preload_config['upsample_noise']['path'] is not None \
+    else np.random.rand(*preload_config['upsample_noise']['shape'])
+upsample_noise_tensor = torch.from_numpy(upsample_noise_npy).to(device)
+
+pre_noise = [base_noise_tensor,upsample_noise_tensor]
 
 final_sample:torch.Tensor = None
 count = 0
 for x in tqdm(sampler.sample_batch_progressive(
-    batch_size=1, model_kwargs=dict(embeddings=emb),
-    # pre_noise=pre_noise,
+    batch_size=1, model_kwargs=dict(embeddings=conditional_emb_tensor),
+    pre_noise=pre_noise,
     cond_fn_lst=cond_fn_lst
 ),position=0):
     if (general_config['total_steps']-count)%general_config['save_every_iter'] == 0: 

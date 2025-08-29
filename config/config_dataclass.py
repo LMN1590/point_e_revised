@@ -1,4 +1,4 @@
-from typing import TypedDict,List
+from typing import TypedDict,List,Optional,Dict,Literal
 
 from sap.config_dataclass import SAPConfig
 from softzoo.configs.config_dataclass import FullConfig
@@ -11,6 +11,10 @@ class ConditioningConfig(TypedDict):
     calc_gradient:bool
     logging_bool: bool
 
+class EmbeddingConfig(TypedDict):
+    shape:List[int]
+    path:Optional[str]
+
 class GeneralConfig(TypedDict):
     exp_name: str
     seed: int
@@ -22,7 +26,7 @@ class GeneralConfig(TypedDict):
     cond_config: List[ConditioningConfig]
     cond_overall_logging: bool
     
-    embedding_path: str # Path to the precomputed embeddings
+    preload_emb: Dict[Literal['condition_embedding','diffusion_noise','upsample_noise'],EmbeddingConfig]
     
     softzoo_config: FullConfig
     sap_config: SAPConfig

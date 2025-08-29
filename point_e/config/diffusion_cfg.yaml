@@ -5,9 +5,9 @@ DIFFUSION_CONFIGS:
     mean_type: epsilon
     schedule: cosine
     timesteps: 1024
-    respacing: ddim64
-    k: 2
-    condition_threshold: 4
+    respacing: ddim256
+    k: 5
+    condition_threshold: 96
   base40M-textvec: *base_diffusion_config
   base40M-uncond: *base_diffusion_config
   base40M: *base_diffusion_config
@@ -19,6 +19,6 @@ DIFFUSION_CONFIGS:
     mean_type: epsilon
     schedule: linear
     timesteps: 1024
-    respacing: ddim64
-    k: 2
-    condition_threshold: 4
+    respacing: ddim256
+    k: 5
+    condition_threshold: 96
