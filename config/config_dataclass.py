@@ -1,8 +1,15 @@
-from typing import TypedDict
+from typing import TypedDict,List
 
 from sap.config_dataclass import SAPConfig
 from softzoo.configs.config_dataclass import FullConfig
 from point_e.config import PointEConfig
+
+class ConditioningConfig(TypedDict):
+    name:str
+    grad_scale:float
+    grad_clamp:float
+    calc_gradient:bool
+    logging_bool: bool
 
 class GeneralConfig(TypedDict):
     exp_name: str
@@ -11,10 +18,9 @@ class GeneralConfig(TypedDict):
     tensorboard_log_dir: str
     save_every_iter: int
     total_steps:int
-        
-    grad_scale: float
-    grad_clamp: float
-    calc_gradient: bool
+    
+    cond_config: List[ConditioningConfig]
+    cond_overall_logging: bool
     
     embedding_path: str # Path to the precomputed embeddings
     

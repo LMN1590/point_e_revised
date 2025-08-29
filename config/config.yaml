@@ -5,9 +5,18 @@ tensorboard_log_dir: runs/
 save_every_iter: &log_freq 1
 total_steps: 512 # Check diffusion_cfg to see how many steps there are in diffusion (normal diffusion + upsampler)
 
-grad_scale: !!float 1e0
-grad_clamp: !!float 1e-2
-calc_gradient: True
+cond_config:
+  - name: "SoftZoo_Sim"
+    grad_scale: !!float 1e0
+    grad_clamp: !!float 1e-2
+    calc_gradient: True
+    logging_bool: True
+  - name: "Dist_To_Origin"
+    grad_scale: !!float 1e0
+    grad_clamp: !!float 1e-2
+    calc_gradient: True
+    logging_bool: True
+cond_overall_logging: True
 
 embedding_path: embeddings/embedding.npy # Path to the precomputed embeddings
 

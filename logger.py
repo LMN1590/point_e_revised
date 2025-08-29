@@ -159,7 +159,9 @@ def init_all_logger(out_dir:str, exp_name:str, tensorboard_log_dir:str):
             'sampling_step','local_iter','batch_idx',
             "sap_epoch", 'sap_loss','sap_inputs_grad_norm','sap_lr','sap_num_points',
             'softzoo_loss','softzoo_grad_norm','softzoo_reward',
-            'softzoo_mean_loss','softzoo_scaled_mean_grad_norm'
+            'softzoo_mean_loss','softzoo_scaled_mean_grad_norm',
+            
+            'loss','grad_norm'
         ]
     )
     logging.basicConfig(

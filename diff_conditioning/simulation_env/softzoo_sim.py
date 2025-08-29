@@ -30,6 +30,7 @@ from .designer.generated_pointe import GeneratedPointEPCD
 from .designer.base import Base as DesignerBase
 
 from sap.config_dataclass import SAPConfig
+from config.config_dataclass import ConditioningConfig
 from logger import TENSORBOARD_LOGGER as tensorboard_logger,CSVLOGGER
 import logging
 
@@ -59,10 +60,12 @@ class SoftzooSimulation(BaseCond):
     def __init__(
         self,
         config:FullConfig, sap_config:SAPConfig,
+        name:str,
         grad_scale:float, calc_gradient:bool = False,
-        grad_clamp:float = 1e-2
+        grad_clamp:float = 1e-2,
+        logging_bool:bool = True
     ):
-        super(SoftzooSimulation, self).__init__(grad_scale,calc_gradient,grad_clamp)
+        super(SoftzooSimulation, self).__init__(name,grad_scale,calc_gradient,grad_clamp,logging_bool)
         self.sap = CustomSAP(
             sap_config,
             device = torch.device(sap_config['device'])
@@ -214,38 +217,40 @@ class SoftzooSimulation(BaseCond):
                         # TODO: Fix problem here where nan sometimes occur in simulation
                         logging.warning("Warning!!!: Got nan",t)
                 
-                CSVLOGGER.log({
-                    "phase": "SoftZoo_Simulation",
-                    
-                    "sampling_step": t_sample,
-                    "local_iter": local_iter,
-                    "batch_idx": i,
-                    
-                    "softzoo_loss": all_loss[-1],
-                    "softzoo_grad_norm": 0. if not self.calc_gradient else cur_grad.norm(2).item(),
-                    "softzoo_reward": ep_reward,
-                })
+                if self.logging_bool:
+                    CSVLOGGER.log({
+                        "phase": "SoftZoo_Simulation",
+                        
+                        "sampling_step": t_sample,
+                        "local_iter": local_iter,
+                        "batch_idx": i,
+                        
+                        "softzoo_loss": all_loss[-1],
+                        "softzoo_grad_norm": 0. if not self.calc_gradient else cur_grad.norm(2).item(),
+                        "softzoo_reward": ep_reward,
+                    })
                         
         sap_loss_lst = np.array(sap_loss_lst)
         cur_loss = np.array(cur_loss)
         self.grad_lst.append(accum_grad)
         self.loss_lst.append(cur_loss)      
-        
-        tensorboard_logger.log_scalar("Simulation_SoftZoo/All_Batch_SoftZoo_Loss",cur_loss.mean())
-        tensorboard_logger.log_scalar("Simulation_SAP/All_Batch_Loss",sap_loss_lst.mean())
         scaled_gradient = torch.clamp(-accum_grad*self.grad_scale,min = -self.grad_clamp,max=self.grad_clamp)
-        tensorboard_logger.log_scalar("Simulation_SoftZoo/All_Batch_GradientNorm",scaled_gradient.view(-1).norm(2))
-        tensorboard_logger.increment_step()
         
-        CSVLOGGER.log({
-            "phase": "SoftZoo_Overall",
+        if self.logging_bool:
+            tensorboard_logger.log_scalar("Simulation_SoftZoo/All_Batch_SoftZoo_Loss",cur_loss.mean())
+            tensorboard_logger.log_scalar("Simulation_SAP/All_Batch_Loss",sap_loss_lst.mean())
+            tensorboard_logger.log_scalar("Simulation_SoftZoo/All_Batch_GradientNorm",scaled_gradient.view(-1).norm(2))
+            # tensorboard_logger.increment_step()
             
-            "sampling_step": t.tolist()[0],
-            "local_iter": local_iter,
-            
-            "softzoo_mean_loss": cur_loss.mean(),
-            "softzoo_scaled_mean_grad_norm":scaled_gradient.view(-1).norm(2).item()
-        })
+            CSVLOGGER.log({
+                "phase": "SoftZoo_Overall",
+                
+                "sampling_step": t.tolist()[0],
+                "local_iter": local_iter,
+                
+                "softzoo_mean_loss": cur_loss.mean(),
+                "softzoo_scaled_mean_grad_norm":scaled_gradient.view(-1).norm(2).item()
+            })
   
         return scaled_gradient
         
@@ -354,37 +359,48 @@ class SoftzooSimulation(BaseCond):
             grad = dict()
         return all_loss,grad,grad_name_control
     # endregion 
+    @classmethod
+    def init_cond(cls,config:ConditioningConfig,softzoo_config:FullConfig, sap_config:SAPConfig,**kwargs)->'SoftzooSimulation':
+        return cls(
+            name = config['name'],
+            config = softzoo_config,
+            sap_config = sap_config,
+            grad_scale = config['grad_scale'],
+            grad_clamp = config['grad_clamp'],
+            calc_gradient = config['calc_gradient'],
+            logging_bool = config['logging_bool']
+        )
 
-if __name__=='__main__':
-    import numpy as np
-    import open3d as o3d
+# if __name__=='__main__':
+#     import numpy as np
+#     import open3d as o3d
     
-    full_config,sap_config = SoftzooSimulation.load_config(
-        cfg_path = 'config/softzoo_config.yaml',
-        sap_cfg_path = 'config/sap_config.yaml'
-    )
-    cond_cls = SoftzooSimulation(
-        config = full_config,
-        sap_config= sap_config,
-        grad_scale=1e-1,
-        calc_gradient=True,
-        grad_clamp=1e-2
-    )
+#     full_config,sap_config = SoftzooSimulation.load_config(
+#         cfg_path = 'config/softzoo_config.yaml',
+#         sap_cfg_path = 'config/sap_config.yaml'
+#     )
+#     cond_cls = SoftzooSimulation(
+#         config = full_config,
+#         sap_config= sap_config,
+#         grad_scale=1e-1,
+#         calc_gradient=True,
+#         grad_clamp=1e-2
+#     )
     
-    loaded_pcd = np.load('sample_generated_pcd.npz')
-    x = torch.from_numpy(loaded_pcd['coords']).detach().to(sap_config['device'])
-    # pcd = o3d.io.read_point_cloud('hand.pcd')
-    # x_hand=torch.from_numpy(np.array(pcd.points)).requires_grad_(True)
+#     loaded_pcd = np.load('sample_generated_pcd.npz')
+#     x = torch.from_numpy(loaded_pcd['coords']).detach().to(sap_config['device'])
+#     # pcd = o3d.io.read_point_cloud('hand.pcd')
+#     # x_hand=torch.from_numpy(np.array(pcd.points)).requires_grad_(True)
 
     
-    x = x.permute(1,0)
-    # x_hand = normalize_to_unit_box(x_hand).permute(1,0)
-    x = torch.stack([
-        x.detach().clone().requires_grad_(True),
-        x.detach().clone().requires_grad_(True),
-    ],dim=0)
+#     x = x.permute(1,0)
+#     # x_hand = normalize_to_unit_box(x_hand).permute(1,0)
+#     x = torch.stack([
+#         x.detach().clone().requires_grad_(True),
+#         x.detach().clone().requires_grad_(True),
+#     ],dim=0)
 
-    scaled_grad = cond_cls.calculate_gradient(x,torch.tensor([0,0,0]))
-    print(scaled_grad)
+#     scaled_grad = cond_cls.calculate_gradient(x,torch.tensor([0,0,0]))
+#     print(scaled_grad)
     
     

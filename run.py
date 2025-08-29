@@ -69,7 +69,7 @@ sampler = PointCloudSampler(
 # endregion
 
 # region Intialize SoftZoo Simulations
-from diff_conditioning import SoftzooSimulation
+from diff_conditioning import CondSet,SoftzooSimulation
 
 softzoo_config:Dict = general_config['softzoo_config']
 full_softzoo_config = SoftzooSimulation.load_config(
@@ -78,15 +78,13 @@ full_softzoo_config = SoftzooSimulation.load_config(
 full_softzoo_config.out_dir = LOG_PATH_DICT['softzoo_log_dir']
 general_config['sap_config']['train']['dir_mesh'] = LOG_PATH_DICT['sap_mesh_dir']
 general_config['sap_config']['train']['dir_pcl'] = LOG_PATH_DICT['sap_pcl_dir']
-cond_cls = SoftzooSimulation(
-    config = full_softzoo_config,
-    sap_config = general_config['sap_config'],
-    grad_scale = general_config['grad_scale'],
-    grad_clamp = general_config['grad_clamp'],
-    calc_gradient = general_config['calc_gradient']
+cond_set = CondSet(
+    cond_config_lst = general_config['cond_config'],
+    cond_overall_logging= general_config['cond_overall_logging'],
+    softzoo_config = full_softzoo_config,
+    sap_config = general_config['sap_config']
 )
-# cond_fn_lst = [cond_cls.calculate_gradient, None]
-cond_fn_lst = [None,None]
+cond_fn_lst = [cond_set.calculate_gradient,None]
 # endregion
 
 # region Run Sampling

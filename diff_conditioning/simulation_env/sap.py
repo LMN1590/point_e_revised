@@ -55,7 +55,7 @@ class CustomSAP:
             }
             
             CSVLOGGER.log({
-                "phase": "SAP_Dense_Sample",
+                "phase": "SoftZoo_SAP",
                 
                 "sampling_step": sampling_step,
                 "local_iter": local_iter,
