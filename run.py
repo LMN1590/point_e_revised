@@ -6,10 +6,12 @@ import yaml
 import os
 from typing import Dict
 from tqdm import tqdm
+import shutil
 
 from config.config_dataclass import GeneralConfig
 
 # region Prepare Configurations and Logger
+CONFIG_PATH = 'config/config.yaml'
 with open('config/config.yaml') as f:
     general_config:GeneralConfig = yaml.safe_load(f)
 
@@ -19,13 +21,13 @@ LOG_PATH_DICT = init_log_dir(
     exp_name = general_config['exp_name'],
     tensorboard_log_dir=general_config['tensorboard_log_dir']
 )
+shutil.copyfile(CONFIG_PATH, os.path.join(LOG_PATH_DICT['exp_dir'],'config.yaml'))
 
 random.seed(general_config['seed'])
 np.random.seed(general_config['seed'])
 torch.manual_seed(general_config['seed'])
-#torch.Size([1, 1024, 256])
 
-from logger import TENSORBOARD_LOGGER
+from logger import TENSORBOARD_LOGGER,CSVLOGGER
 # endregion
 # region Initialize Point-E models
 from point_e.diffusion.configs import diffusion_from_config
@@ -34,6 +36,7 @@ from point_e.config import MODEL_CONFIGS,DIFFUSION_CONFIGS
 
 from point_e.utils.download import load_checkpoint
 from point_e.diffusion.sampler import PointCloudSampler
+
 
 pointe_configs = general_config['pointe_config']
 device = torch.device(pointe_configs['device'])
@@ -82,7 +85,8 @@ cond_cls = SoftzooSimulation(
     grad_clamp = general_config['grad_clamp'],
     calc_gradient = general_config['calc_gradient']
 )
-cond_fn_lst = [cond_cls.calculate_gradient, None]
+# cond_fn_lst = [cond_cls.calculate_gradient, None]
+cond_fn_lst = [None,None]
 # endregion
 
 # region Run Sampling
@@ -115,6 +119,7 @@ for x in tqdm(sampler.sample_batch_progressive(
 
 # region Clean Up
 TENSORBOARD_LOGGER.close()
+CSVLOGGER.close()
 
 from point_e.utils.plotting import plot_point_cloud
 pc = sampler.output_to_point_clouds(final_sample)[0]

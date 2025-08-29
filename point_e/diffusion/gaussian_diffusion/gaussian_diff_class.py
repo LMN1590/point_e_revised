@@ -366,7 +366,7 @@ class GaussianDiffusion:
         sample = x
         if cond_fn is not None and t[0]<=self.condition_threshold:
             for local_iter in tqdm(range(self.k),desc = f"Current sampling step {t[0].item()}",position=1,leave=False):
-                logging.info(f"Current iter {t[0].item()} - local iter {local_iter}")
+                logging.info(f"Current sampling step {t[0].item()} - local iter {local_iter}")
                 out["mean"] = self.condition_mean(
                     cond_fn, out, sample, t, 
                     local_iter = local_iter, model_kwargs=model_kwargs

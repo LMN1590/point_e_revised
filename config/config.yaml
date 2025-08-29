@@ -1,11 +1,11 @@
-exp_name: placeholder
+exp_name: custom_normal_ddim256 #custom_emb_grad_ddim256_scale1e0_k5_thresh96_grippingloss_onhand_frame75_clamp1e-2_dense_sap_seed42
 seed: &seed 42
 out_dir: ./logs/
 tensorboard_log_dir: runs/
 save_every_iter: &log_freq 1
 total_steps: 512 # Check diffusion_cfg to see how many steps there are in diffusion (normal diffusion + upsampler)
 
-grad_scale: !!float 1e-2
+grad_scale: !!float 1e0
 grad_clamp: !!float 1e-2
 calc_gradient: True
 
@@ -63,7 +63,7 @@ sap_config:
       factor: 0.5
       final: 1e-3
     
-    total_epochs: 300
+    total_epochs: 500
 
     w_chamfer: 1.
     w_chamfer_v_mesh: 1.
@@ -79,7 +79,7 @@ sap_config:
     exp_mesh: True
     exp_pcl: True
 
-    resample_every: 60
+    resample_every: 100
 
   sample:
     num_points: 10000
