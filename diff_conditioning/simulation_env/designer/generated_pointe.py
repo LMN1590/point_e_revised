@@ -95,6 +95,7 @@ class GeneratedPointEPCD(Base):
             cluster_idx = np.where(coarse_labels == c)[0]
             cluster_points = points_std[cluster_idx]
             if cluster_points.shape[0] == 0:
+                logging.warning(f"Coarse muscle clusters {c} skipped due to no members available.")
                 continue
             
             additional_clusters += self._split_muscle_layers(cluster_points,target_center_np)
@@ -218,7 +219,7 @@ class GeneratedPointEPCD(Base):
         # visualize_point_cloud(complete_pos_tensor,complete_labels)
         unique_lbls = np.unique(complete_labels)
         if not self.env.sim.solver.n_actuators == unique_lbls.shape[0]:
-            logging.warning("Warning!!!!: \n The number of actuators must be equal to the number of generated labels. Probllem in configuration files")
+            logging.warning(f"Warning!!!!: \n The number of actuators {self.env.sim.solver.n_actuators} must be equal to the number of generated labels {unique_lbls.shape[0]}. Probllem in configuration files")
         # endregion
         
         # region Calculate Actuator Direction

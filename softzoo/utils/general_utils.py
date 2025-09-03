@@ -64,6 +64,14 @@ def extract_part_pca_inner(points,lbls,return_part_colors=False,within_part_clus
         masked_points = points[mask]
         masked_points_std = points_std[mask]
         
+        # Check for empty cluster
+        if masked_points.shape[0]==0:
+            # Handle empty cluster explicitly
+            all_part_pc[i] = np.empty((0, points.shape[1]))
+            all_part_pc_pca[i] = np.empty((0, points.shape[1]))
+            all_part_pc_std[i] = np.empty((0, points.shape[1]))
+            continue  # skip clustering & PCA fit
+        
         if within_part_clustering: # HACK
             within_part_pcd = o3d.geometry.PointCloud()
             within_part_pcd.points = o3d.utility.Vector3dVector(masked_points)
@@ -95,9 +103,17 @@ def extract_part_pca_inner(points,lbls,return_part_colors=False,within_part_clus
     all_part_pca_components = dict()
     all_part_pca_singular_values = dict()
     for k, part_pc_pca in all_part_pc_pca.items():
-        # TODO: Fix problem here sometimes num samples < 3
-        if min(*part_pc_pca.shape,3)<3: logging.warning("Warning!!!: Numer of points in cluster is small <3.")
-        pca = PCA(n_components=min(*part_pc_pca.shape,3))
+        n_components = min(*part_pc_pca.shape,3)
+        
+        if part_pc_pca.shape[0]<3:
+            logging.warning(f"Cluster {k} has too few points ({part_pc_pca.shape[0]}).")
+            d = points.shape[1]
+            all_part_pca_components[k] = np.eye(d)
+            all_part_pca_singular_values[k] = np.zeros(d)
+            continue
+        
+        # if n_components<3: logging.warning("Warning!!!: Numer of points in cluster is small <3.")
+        pca = PCA(n_components=n_components)
         pca.fit(part_pc_pca)
         all_part_pca_components[k] = pca.components_
         all_part_pca_singular_values[k] = pca.singular_values_
