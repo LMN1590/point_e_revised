@@ -1,6 +1,5 @@
 .venv/
 __pycache__/
-asset/
 assets/
 *_cache/
 logs/
@@ -10,3 +9,4 @@ runs/
 out/
 runs_temp/
 archive/
+img_asset/
