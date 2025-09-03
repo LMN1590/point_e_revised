@@ -3,6 +3,7 @@ import numpy as np
 
 import trimesh
 import open3d as o3d
+from kaolin.ops.mesh import check_sign
 
 from typing import Optional, Dict,Literal
 import os
@@ -120,17 +121,21 @@ class Trainer:
         x_0_weight = torch.tensor([self.cfg['train']['w_chamfer_x_0']]).view(1,1).expand(-1,pts_gt.shape[1]).to(self.device)
         v_mesh_weight = torch.tensor([self.cfg['train']['w_chamfer_v_mesh']]).view(1,1).expand(-1,v_mesh.shape[1]).to(self.device)
         
-        mesh = o3d.geometry.TriangleMesh()
-        mesh.vertices = o3d.utility.Vector3dVector(v[0].detach().cpu().numpy())
-        mesh.triangles = o3d.utility.Vector3iVector(f[0].detach().cpu().numpy())
+        occ = check_sign(v,f[0].to(torch.int64),pts_gt)
+        x_0_weight[occ] *= self.cfg['train']['w_inside']
+        x_0_weight[~occ] *= self.cfg['train']['w_outside']
         
-        tmesh = o3d.t.geometry.TriangleMesh.from_legacy(mesh)
-        scene = o3d.t.geometry.RaycastingScene()
-        _ = scene.add_triangles(tmesh)
+        # mesh = o3d.geometry.TriangleMesh()
+        # mesh.vertices = o3d.utility.Vector3dVector(v[0].detach().cpu().numpy())
+        # mesh.triangles = o3d.utility.Vector3iVector(f[0].detach().cpu().numpy())
+        
+        # tmesh = o3d.t.geometry.TriangleMesh.from_legacy(mesh)
+        # scene = o3d.t.geometry.RaycastingScene()
+        # _ = scene.add_triangles(tmesh)
 
-        occ = scene.compute_occupancy(o3d.core.Tensor(pts_gt[0].detach().cpu().numpy(), dtype=o3d.core.Dtype.Float32))
-        x_0_weight[:,occ.numpy() > 0] *= self.cfg['train']['w_inside']
-        x_0_weight[:,occ.numpy() <= 0] *= self.cfg['train']['w_outside']
+        # occ = scene.compute_occupancy(o3d.core.Tensor(pts_gt[0].detach().cpu().numpy(), dtype=o3d.core.Dtype.Float32))
+        # x_0_weight[:,occ.numpy() > 0] *= self.cfg['train']['w_inside']
+        # x_0_weight[:,occ.numpy() <= 0] *= self.cfg['train']['w_outside']
         
         loss, _ = chamfer_distance_surface(
             x_0 = pts_gt,
