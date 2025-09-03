@@ -237,7 +237,7 @@ def sample_pc_in_mesh_gpu_optim(
     pts = pts * (max_bound_n - min_bound_n) / 2.0 + (max_bound_n + min_bound_n) / 2.0
     
     # Inside-outside test
-    occ = kaolin.ops.mesh.check_sign(v_norm, f, pts)  # (1, total_samples)
+    occ = kaolin.ops.mesh.check_sign(v_norm, f.to(torch.int64), pts)  # (1, total_samples)
     inside_pts = pts[0, occ[0]]
     if inside_pts.shape[0] < num_points // 2:
         logging.warning("Warning!!! Insufficient points sampled. Mesh may not be watertight → falling back to voxelization")
