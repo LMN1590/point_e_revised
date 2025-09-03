@@ -16,7 +16,7 @@ class LogPathDict(TypedDict):
     sap_mesh_dir:str
     sap_pcl_dir:str
 
-def init_log_dir(out_dir:str, exp_name:str, tensorboard_log_dir:str)->LogPathDict:
+def init_log_dir(out_dir:str, exp_name:str, tensorboard_log_dir:str,increment_step:float)->LogPathDict:
     exp_dir = os.path.join(out_dir,exp_name)
     os.makedirs(exp_dir,exist_ok=True)
     
@@ -37,7 +37,7 @@ def init_log_dir(out_dir:str, exp_name:str, tensorboard_log_dir:str)->LogPathDic
     os.makedirs(sap_pcl_dir,exist_ok=True)
     os.makedirs(sap_training_dir,exist_ok=True)
     
-    init_all_logger(out_dir, exp_name,tensorboard_log_dir)
+    init_all_logger(out_dir, exp_name,tensorboard_log_dir,increment_step=increment_step)
     
     return {
         "exp_dir":exp_dir,

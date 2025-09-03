@@ -19,7 +19,8 @@ from utils import init_log_dir
 LOG_PATH_DICT = init_log_dir(
     out_dir = general_config['out_dir'],
     exp_name = general_config['exp_name'],
-    tensorboard_log_dir=general_config['tensorboard_log_dir']
+    tensorboard_log_dir=general_config['tensorboard_log_dir'],
+    increment_step=1.
 )
 shutil.copyfile(CONFIG_PATH, os.path.join(LOG_PATH_DICT['exp_dir'],'config.yaml'))
 

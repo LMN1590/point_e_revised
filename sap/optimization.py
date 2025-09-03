@@ -247,14 +247,14 @@ class Trainer:
             center (numpy.array)        : center of the shape
             scale (numpy.array)         : scale of the shape
         '''
-
         exp_pcl = self.cfg['train']['exp_pcl']
         exp_mesh = self.cfg['train']['exp_mesh']
         
         psr_grid, points, normals = self.pcl2psr(inputs)
         
         if exp_pcl:
-            dir_pcl = log_dir
+            dir_pcl = os.path.join(log_dir,'pcd')
+            os.makedirs(dir_pcl,exist_ok=True)
             p = points.squeeze(0).detach().cpu().numpy()
             p = p * 2 - 1
             n = normals.squeeze(0).detach().cpu().numpy()
@@ -264,7 +264,8 @@ class Trainer:
                 p += center
             export_pointcloud(os.path.join(dir_pcl, 'pcd_{:04d}.ply'.format(epoch)), p, n)
         if exp_mesh:
-            dir_mesh = log_dir
+            dir_mesh = os.path.join(log_dir,'mesh')
+            os.makedirs(dir_mesh,exist_ok=True)
             with torch.no_grad():
                 v, f, _ = mc_from_psr(psr_grid,
                         zero_level=self.cfg['data']['zero_level'], real_scale=True)
@@ -276,7 +277,7 @@ class Trainer:
             mesh = o3d.geometry.TriangleMesh()
             mesh.vertices = o3d.utility.Vector3dVector(v)
             mesh.triangles = o3d.utility.Vector3iVector(f)
-            outdir_mesh = os.path.join(dir_mesh, '{:04d}.ply'.format(epoch))
+            outdir_mesh = os.path.join(dir_mesh, 'mesh_{:04d}.ply'.format(epoch))
             o3d.io.write_triangle_mesh(outdir_mesh, mesh)
             
     def export_mesh(self, inputs, center=None, scale=None):

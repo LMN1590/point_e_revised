@@ -1,14 +1,15 @@
-exp_name: custom_emb_grad_ddim256_scale1e-1_clamp1e-2_k5_thresh96_grippingloss_onhand_frame75_dense_sap_seed42_preset_noise
+exp_name: custom_emb_grad_ddim256_scale1e-2_clamp1e-3_k5_thresh96_grippingloss_onhand_frame75_dense_sap_seed42_preset_noise
 seed: &seed 42
 out_dir: ./logs/
 tensorboard_log_dir: runs/
 save_every_iter: &log_freq 1
 total_steps: 512 # Check diffusion_cfg to see how many steps there are in diffusion (normal diffusion + upsampler)
+substep_count: 5 # remember to update in diffusion config in pointe
 
 cond_config:
   - name: "SoftZoo_Sim"
-    grad_scale: !!float 1e-1
-    grad_clamp: !!float 1e-2
+    grad_scale: !!float 1e-2
+    grad_clamp: !!float 1e-3
     calc_gradient: True
     logging_bool: True
   # - name: "Dist_To_Origin"

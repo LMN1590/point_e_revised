@@ -61,5 +61,5 @@ class CondSet:
                 "grad_norm":accum_grad.view(-1).norm(2).item()
             })
         
-        TENSORBOARD_LOGGER.increment_step()
+        TENSORBOARD_LOGGER.increment()
         return accum_grad

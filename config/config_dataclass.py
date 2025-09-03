@@ -22,6 +22,7 @@ class GeneralConfig(TypedDict):
     tensorboard_log_dir: str
     save_every_iter: int
     total_steps:int
+    substep_count:int
     
     cond_config: List[ConditioningConfig]
     cond_overall_logging: bool

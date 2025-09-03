@@ -20,7 +20,7 @@ import csv
 class TrainingLogger:
     """Enhanced TensorBoard logger for training metrics"""
     
-    def __init__(self, log_dir=None, experiment_name=None):
+    def __init__(self, log_dir=None, experiment_name=None,increment_step:float=1.):
         if log_dir is None:
             timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
             experiment_name = experiment_name or "experiment"
@@ -28,6 +28,7 @@ class TrainingLogger:
         
         self.log_dir = log_dir
         self.writer = SummaryWriter(log_dir)
+        self.increment_step = increment_step
         self.step = 0
         
         print(f"📊 TensorBoard logging to: {log_dir}")
@@ -101,9 +102,9 @@ class TrainingLogger:
             lr = param_group['lr']
             self.writer.add_scalar(f'learning_rate/group_{i}', lr, step)
     
-    def increment_step(self):
+    def increment(self):
         """Increment the global step counter"""
-        self.step += 1
+        self.step += self.increment_step
     
     def close(self):
         """Close the writer"""
@@ -140,18 +141,18 @@ class CSVLogger:
 
 
 # Quick setup for your existing training code
-def quick_tensorboard_setup(experiment_name:str,log_dir:str):
+def quick_tensorboard_setup(experiment_name:str,log_dir:str,increment_step:float):
     """Quick setup function for existing training code"""
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
     log_dir = f"runs/{experiment_name}_{timestamp}"
-    writer = TrainingLogger(log_dir,experiment_name)
+    writer = TrainingLogger(log_dir,experiment_name,increment_step=increment_step)
     
     return writer
 
-def init_all_logger(out_dir:str, exp_name:str, tensorboard_log_dir:str):
+def init_all_logger(out_dir:str, exp_name:str, tensorboard_log_dir:str,increment_step:float):
     """Initialize TensorBoard logger"""
     global TENSORBOARD_LOGGER,CSVLOGGER
-    TENSORBOARD_LOGGER = quick_tensorboard_setup(exp_name,log_dir=tensorboard_log_dir)
+    TENSORBOARD_LOGGER = quick_tensorboard_setup(exp_name,log_dir=tensorboard_log_dir,increment_step=increment_step)
     CSVLOGGER = CSVLogger(
         filepath = os.path.join(out_dir,exp_name,'training_log.csv'),
         fieldnames = [
