@@ -257,7 +257,7 @@ def sample_pc_in_mesh_gpu_optim(
         jitter = (torch.rand_like(grid_pts) - 0.5) * (voxel_size/scale)
         grid_pts = grid_pts + jitter
 
-        occ_vox = kaolin.ops.mesh.check_sign(v_norm, f, grid_pts.unsqueeze(0))
+        occ_vox = kaolin.ops.mesh.check_sign(v_norm, f.to(torch.int64), grid_pts.unsqueeze(0))
         inside_pts = grid_pts[occ_vox[0]]
         
     if inside_pts.shape[0] > num_points:
