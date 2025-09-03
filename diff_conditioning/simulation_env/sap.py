@@ -6,11 +6,12 @@ import open3d as o3d
 
 from tqdm import trange,tqdm
 import os
+from typing import Dict
 
 from sap.config_dataclass import SAPConfig
 from sap.utils.schedule_utils import StepLearningRateSchedule,adjust_learning_rate
 from sap.utils.optimizer_utils import update_optimizer
-from sap.utils.mesh_pc_utils import sample_pc_in_mesh
+from sap.utils.mesh_pc_utils import sample_pc_in_mesh,mc_from_psr,sample_pc_in_mesh_gpu_optim
 from sap.utils.gradient_utils import gaussian_kernel
 from sap.optimization import Trainer
 
@@ -89,23 +90,26 @@ class CustomSAP:
                 trainer.save_mesh_pointclouds(inputs,epoch,cur_training_dir,data['center'].cpu().numpy(), data['scale'].cpu().numpy()*(1/0.9))
                 raise e
 
-        mesh = trainer.export_mesh(inputs,data['center'].cpu().numpy(), data['scale'].cpu().numpy()*(1/0.9)) 
+        output_data = self._postprocess(
+            inputs,data,trainer
+        )
+        
         if self.sap_config['train']['exp_mesh'] and sampling_step%self.sap_config['save_every_iter']==0:
+            mesh = o3d.geometry.TriangleMesh()
+            mesh.vertices = o3d.utility.Vector3dVector(output_data['mesh']['vertices'].cpu().numpy())
+            mesh.triangles = o3d.utility.Vector3iVector(output_data['mesh']['faces'].cpu().numpy())
             o3d.io.write_triangle_mesh(
                 os.path.join(self.sap_config['train']['dir_mesh'],f'mesh_Batch_{batch_idx}_Sampling_{sampling_step}_Local_{local_iter}_Loss{loss:.5f}.ply'),
                 mesh
             )
-        pcd = sample_pc_in_mesh(
-            mesh, num_points=self.sap_config['sample']['num_points'],
-            density=self.sap_config['sample']['density'], 
-            voxel_size=self.sap_config['sample']['voxel_size']
-        )
         if self.sap_config['train']['exp_pcl'] and sampling_step%self.sap_config['save_every_iter']==0:
+            pcd = o3d.geometry.PointCloud()
+            pcd.points = o3d.utility.Vector3dVector(output_data['pcd'].cpu().numpy())
             o3d.io.write_point_cloud(
                 os.path.join(self.sap_config['train']['dir_pcl'],f'pcd_Batch_{batch_idx}_Sampling_{sampling_step}_Local_{local_iter}_Loss{loss:.5f}.ply'),
                 pcd
             )
-        return torch.from_numpy(np.array(pcd.points)).float().to(self.device), loss
+        return output_data['pcd'], loss
         
     def _preprocess(self,points:torch.Tensor):
         # points: (N,3)
@@ -138,6 +142,32 @@ class CustomSAP:
         inputs.requires_grad = True
         
         return inputs
+    
+    def _postprocess(self,inputs:torch.Tensor,data:Dict,trainer:Trainer):
+        psr_grid, points, normals = trainer.pcl2psr(inputs)
+        with torch.no_grad():
+            v, f, _ = mc_from_psr(psr_grid,zero_level=trainer.cfg['data']['zero_level'], real_scale=True,pytorchify=True)
+            v = v * 2 - 1
+            if data['scale'] is not None:
+                v *= data['scale']
+            if data['center'] is not None:
+                v += data['center']
+        
+        inside_points = sample_pc_in_mesh_gpu_optim(
+            v,f,
+            num_points=self.sap_config['sample']['num_points'],
+            density=self.sap_config['sample']['density'], 
+            voxel_size=self.sap_config['sample']['voxel_size']
+        )
+        return {
+            "mesh":{
+                "vertices":v,
+                "faces":f
+            },
+            "pcd":inside_points
+        }
+        
+        
     
     def calculate_x0_grad(
         self,

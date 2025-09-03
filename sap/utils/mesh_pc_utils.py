@@ -7,6 +7,7 @@ from skimage import measure
 from igl import adjacency_matrix, connected_components
 from pytorch3d.structures import Meshes
 from pytorch3d.renderer import PerspectiveCameras, rasterize_meshes
+import kaolin
 
 from typing import Union
 import logging
@@ -197,6 +198,71 @@ def sample_pc_in_mesh(mesh,num_points:int = 10000, density:float = 1.0, voxel_si
 
     # Return as point cloud
     inside_pts = inside_pts * scale + center
-    pcd = o3d.geometry.PointCloud()
-    pcd.points = o3d.utility.Vector3dVector(inside_pts)
-    return pcd
+    return inside_pts
+
+
+def sample_pc_in_mesh_gpu_optim(
+    v: torch.Tensor,
+    f: torch.Tensor,
+    num_points: int = 10000,
+    density: float = 1.0,
+    voxel_size: float = 0.05,
+):
+    """
+    GPU-optimized mesh sampling using Kaolin check_sign.
+    
+    Args:
+        v (torch.Tensor): (V, 3) vertices of the mesh
+        f (torch.Tensor): (F, 3) faces (indices into v)
+        num_points (int): number of points to sample inside mesh
+        density (float): oversampling density factor
+        voxel_size (float): approximate fallback voxel jitter size
+    """
+    device = v.device
+
+    # --- Normalize mesh like in your O3D code ---
+    min_bound, _ = torch.min(v, dim=0)
+    max_bound, _ = torch.max(v, dim=0)
+    center = torch.mean(v,dim=0)
+    scale = torch.max(max_bound - min_bound)
+    v_norm = (v - center) / scale
+    v_norm = v_norm.unsqueeze(0)
+    
+    # Uniform AABB sampling
+    total_samples = int(num_points * density * 2)
+    pts = torch.rand((1, total_samples, 3), device=device) * 2.0 - 1.0  # [-1,1]^3 cube
+    # shrink to AABB of normalized mesh
+    min_bound_n, _ = torch.min(v_norm[0], dim=0)
+    max_bound_n, _ = torch.max(v_norm[0], dim=0)
+    pts = pts * (max_bound_n - min_bound_n) / 2.0 + (max_bound_n + min_bound_n) / 2.0
+    
+    # Inside-outside test
+    occ = kaolin.ops.mesh.check_sign(v_norm, f, pts)  # (1, total_samples)
+    inside_pts = pts[0, occ[0]]
+    if inside_pts.shape[0] < num_points // 2:
+        logging.warning("Warning!!! Insufficient points sampled. Mesh may not be watertight → falling back to voxelization")
+        grid_coords = []
+        for dim in range(3):
+            axis = torch.arange(
+                start = min_bound_n[dim].item(), 
+                end= max_bound_n[dim].item(), 
+                step = voxel_size, 
+                device=device
+            )
+            grid_coords.append(axis)
+        gx, gy, gz = torch.meshgrid(grid_coords, indexing="ij")
+        grid_pts = torch.stack([gx, gy, gz], dim=-1).reshape(-1, 3)
+        
+        # Add jitter for variety
+        jitter = (torch.rand_like(grid_pts) - 0.5) * (voxel_size/scale)
+        grid_pts = grid_pts + jitter
+
+        occ_vox = kaolin.ops.mesh.check_sign(v_norm, f, grid_pts.unsqueeze(0))
+        inside_pts = grid_pts[occ_vox[0]]
+        
+    if inside_pts.shape[0] > num_points:
+        idx = torch.randperm(inside_pts.shape[0], device=device)[:num_points]
+        inside_pts = inside_pts[idx]
+        
+    inside_pts = inside_pts * scale + center
+    return inside_pts
