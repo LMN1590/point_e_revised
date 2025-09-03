@@ -1,6 +1,5 @@
 .venv/
 __pycache__/
-assets/
 *_cache/
 logs/
 csv_output/
