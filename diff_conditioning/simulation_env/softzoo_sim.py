@@ -163,7 +163,7 @@ class SoftzooSimulation(BaseCond):
         **model_kwargs
     ) -> torch.Tensor:
         # x is shaped (B*2, C, N)
-        
+        logging.info(f'{self.name}: Start calculating gradients for SoftZoo...')
         x = x.detach().requires_grad_(True)
         B = x.shape[0]
         cur_loss = []
@@ -173,6 +173,7 @@ class SoftzooSimulation(BaseCond):
             if 'original_ts' in model_kwargs:
                 t = model_kwargs['original_ts']
             
+            logging.info(f'{self.name}: Start calculate x_0 from x_t')
             pred_xstart = diffusion._predict_xstart_from_eps(
                 x,t,
                 p_mean_var['eps']
@@ -180,6 +181,7 @@ class SoftzooSimulation(BaseCond):
             
             pos = pred_xstart[:B//2,:3]
             for i,t_sample in zip(range(B//2),t.tolist()):
+                logging.info(f'{self.name}: Start sampling dense gripper with SAP for batch_idx {i}')
                 x_0 = pos[i].T.clone().detach() # (N,3), device cuda:1
                 dense_gripper,sap_loss = self.sap.dense_sample(
                     x_0,
@@ -190,17 +192,20 @@ class SoftzooSimulation(BaseCond):
                 sap_loss_lst.append(sap_loss)
                 dense_gripper.requires_grad = True
                 
+                logging.info(f'{self.name}: Start forwarding simulation for batch_idx {i}')
                 ep_reward = self.forward_sim(
                     dense_gripper,
                     batch_idx = i, 
                     sampling_step=t_sample,
                     local_iter = local_iter
                 ) # gripper: cpu(design) -> cuda:0 (env)
+                logging.info(f'{self.name}: Start backwarding simulation for batch_idx {i}')
                 all_loss,grad,grad_name_control = self.backward_sim()
                 cur_loss.append(all_loss[-1])
                 
                 if self.calc_gradient:
                     #TODO: Apply grad here back to x
+                    logging.info(f'{self.name}: Start backpropagating gradients for batch_idx {i}')
                     self.designer.out_cache['geometry'].backward(gradient=grad[None]['self.env.design_space.buffer.geometry'])
                     if not torch.isnan(dense_gripper.grad.sum()):
                         x_0_grad = self.sap.calculate_x0_grad(

@@ -10,6 +10,7 @@ from .simulation_env import SoftzooSimulation
 from .cond_dist_to_origin import OriginDistanceCond
 
 from logger import TENSORBOARD_LOGGER,CSVLOGGER
+import logging
 
 COND_CLS:Dict[str,Callable[...,BaseCond]] = {
     "Dist_To_Origin": OriginDistanceCond.init_cond,
@@ -41,6 +42,7 @@ class CondSet:
         
         accum_grad = torch.zeros_like(x)
         for cond_cls in self.cond_cls:
+            logging.info(f"Calculate Gradients for: {cond_cls.name}")
             accum_grad += cond_cls.calculate_gradient(
                 x= x, t = t,
                 p_mean_var = p_mean_var,
