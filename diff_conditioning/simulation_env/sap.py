@@ -40,53 +40,54 @@ class CustomSAP:
         pbar = trange(start_epoch+1, self.sap_config['train']['total_epochs']+1,desc="Training",unit=' epoch',position=2,leave=False)
         for epoch in pbar:
             # schedule the learning rate
-            if epoch>0:
-                if (epoch % input_scheduler.interval == 0):
-                    adjust_learning_rate(input_scheduler, optimizer, epoch)
-            
-            if epoch%self.sap_config['save_every_sub_iter']==0:
+            try: 
+                if epoch>0:
+                    if (epoch % input_scheduler.interval == 0):
+                        adjust_learning_rate(input_scheduler, optimizer, epoch)
+                    
+                loss, loss_each, grad_norm = trainer.train_step(data, inputs, None, epoch)
+                cur_lr = optimizer.param_groups[0]['lr']
+                
+                metrics = {
+                    "loss": f"{loss:.5f}",
+                    "lr": f"{cur_lr:.6f}",
+                    "num_points": f"{inputs.shape[1]}",
+                    "grad_norm": f"{grad_norm:.5f}"
+                }
+                
+                CSVLOGGER.log({
+                    "phase": "Post_LossStep_SoftZoo_SAP",
+                    
+                    "sampling_step": sampling_step,
+                    "local_iter": local_iter,
+                    "batch_idx": batch_idx,
+                    
+                    'sap_epoch': epoch,
+                    "sap_loss": loss,
+                    "sap_inputs_grad_norm": grad_norm,
+                    "sap_lr": cur_lr,
+                    "sap_num_points": inputs.shape[1],
+                    'note':f'Min_{inputs.min(dim=1).values}_Max_{inputs.max(dim=1).values}'
+                })
+                
+                if loss_each is not None:
+                    for k, l in loss_each.items():
+                        if l.item() != 0.: metrics[f"loss_{k}"] = f"{l.item():.5f}"
+                pbar.set_postfix(metrics)
+                
+                # resample and gradually add new points to the source pcl
+                if  (epoch > 0) & \
+                    (self.sap_config['train']['resample_every']!=0) & \
+                    (epoch % self.sap_config['train']['resample_every'] == 0) & \
+                    (epoch < self.sap_config['train']['total_epochs']):
+                        inputs = trainer.point_resampling(inputs)
+                        optimizer = update_optimizer(inputs,epoch=epoch, schedule=input_scheduler)
+                        trainer = Trainer(self.sap_config, optimizer, device=self.device)
+            except Exception as e:
                 cur_training_dir = os.path.join(self.sap_config['train']['dir_train'],f'training_Step_{sampling_step}_Local_{local_iter}_Batch_{batch_idx}')
                 os.makedirs(cur_training_dir,exist_ok=True)
                 trainer.save_mesh_pointclouds(inputs,epoch,cur_training_dir,data['center'].cpu().numpy(), data['scale'].cpu().numpy()*(1/0.9))
-            
-            loss, loss_each, grad_norm = trainer.train_step(data, inputs, None, epoch)
-            cur_lr = optimizer.param_groups[0]['lr']
-            
-            metrics = {
-                "loss": f"{loss:.5f}",
-                "lr": f"{cur_lr:.6f}",
-                "num_points": f"{inputs.shape[1]}",
-                "grad_norm": f"{grad_norm:.5f}"
-            }
-            
-            CSVLOGGER.log({
-                "phase": "Post_LossStep_SoftZoo_SAP",
-                
-                "sampling_step": sampling_step,
-                "local_iter": local_iter,
-                "batch_idx": batch_idx,
-                
-                'sap_epoch': epoch,
-                "sap_loss": loss,
-                "sap_inputs_grad_norm": grad_norm,
-                "sap_lr": cur_lr,
-                "sap_num_points": inputs.shape[1],
-                'note':f'Min_{inputs.min(dim=1)}_Max_{inputs.max(dim=1)}'
-            })
-            
-            if loss_each is not None:
-                for k, l in loss_each.items():
-                    if l.item() != 0.: metrics[f"loss_{k}"] = f"{l.item():.5f}"
-            pbar.set_postfix(metrics)
-            
-            # resample and gradually add new points to the source pcl
-            if  (epoch > 0) & \
-                (self.sap_config['train']['resample_every']!=0) & \
-                (epoch % self.sap_config['train']['resample_every'] == 0) & \
-                (epoch < self.sap_config['train']['total_epochs']):
-                    inputs = trainer.point_resampling(inputs)
-                    optimizer = update_optimizer(inputs,epoch=epoch, schedule=input_scheduler)
-                    trainer = Trainer(self.sap_config, optimizer, device=self.device)
+                raise e
 
         mesh = trainer.export_mesh(inputs,data['center'].cpu().numpy(), data['scale'].cpu().numpy()*(1/0.9)) 
         if self.sap_config['train']['exp_mesh'] and sampling_step%self.sap_config['save_every_iter']==0:
