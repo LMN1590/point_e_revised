@@ -31,7 +31,7 @@ ENVIRONMENT:
       max_height: *ground_height
       dampen_coeff: 0.3 # Should be around 0.5-0.6, lower will cause sinking, higher will cause bounce.
     - type: Primitive.Mesh
-      file_path: '/media/aioz-nghiale/data/Data/mujoco_scanned_objects/models/5_HTP/model.obj'
+      file_path: './obj_placeholder/model.obj'
       scale: [0.6,0.6,0.6]
       initial_position: [0.55, 0.0, 0.4]
       initial_rotation: [0.7071, -0.7071, 0.0, 0.0]
