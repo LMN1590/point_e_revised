@@ -44,6 +44,11 @@ class CustomSAP:
                 if (epoch % input_scheduler.interval == 0):
                     adjust_learning_rate(input_scheduler, optimizer, epoch)
             
+            if epoch%self.sap_config['save_every_sub_iter']==0:
+                cur_training_dir = os.path.join(self.sap_config['train']['dir_train'],f'training_Step_{sampling_step}_Local_{local_iter}_Batch_{batch_idx}')
+                os.makedirs(cur_training_dir,exist_ok=True)
+                trainer.save_mesh_pointclouds(inputs,epoch,cur_training_dir,data['center'].cpu().numpy(), data['scale'].cpu().numpy()*(1/0.9))
+            
             loss, loss_each, grad_norm = trainer.train_step(data, inputs, None, epoch)
             cur_lr = optimizer.param_groups[0]['lr']
             
@@ -55,7 +60,7 @@ class CustomSAP:
             }
             
             CSVLOGGER.log({
-                "phase": "SoftZoo_SAP",
+                "phase": "Post_LossStep_SoftZoo_SAP",
                 
                 "sampling_step": sampling_step,
                 "local_iter": local_iter,
@@ -65,7 +70,8 @@ class CustomSAP:
                 "sap_loss": loss,
                 "sap_inputs_grad_norm": grad_norm,
                 "sap_lr": cur_lr,
-                "sap_num_points": inputs.shape[1]
+                "sap_num_points": inputs.shape[1],
+                'note':f'Min_{inputs.min(dim=1)}_Max_{inputs.max(dim=1)}'
             })
             
             if loss_each is not None:

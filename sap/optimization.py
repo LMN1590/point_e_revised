@@ -238,11 +238,12 @@ class Trainer:
 
         return inputs
     
-    def save_mesh_pointclouds(self, inputs, epoch, center=None, scale=None):
+    def save_mesh_pointclouds(self, inputs, epoch, log_dir:str, center=None, scale=None):
         '''  Save meshes and point clouds.
         Args:
             inputs (torch.tensor)       : source point clouds
             epoch (int)                 : the number of iterations
+            log_dir (path)              : the path to store the log
             center (numpy.array)        : center of the shape
             scale (numpy.array)         : scale of the shape
         '''
@@ -253,7 +254,7 @@ class Trainer:
         psr_grid, points, normals = self.pcl2psr(inputs)
         
         if exp_pcl:
-            dir_pcl = self.cfg['train']['dir_pcl']
+            dir_pcl = log_dir
             p = points.squeeze(0).detach().cpu().numpy()
             p = p * 2 - 1
             n = normals.squeeze(0).detach().cpu().numpy()
@@ -261,9 +262,9 @@ class Trainer:
                 p *= scale
             if center is not None:
                 p += center
-            export_pointcloud(os.path.join(dir_pcl, '{:04d}.ply'.format(epoch)), p, n)
+            export_pointcloud(os.path.join(dir_pcl, 'pcd_{:04d}.ply'.format(epoch)), p, n)
         if exp_mesh:
-            dir_mesh = self.cfg['train']['dir_mesh']
+            dir_mesh = log_dir
             with torch.no_grad():
                 v, f, _ = mc_from_psr(psr_grid,
                         zero_level=self.cfg['data']['zero_level'], real_scale=True)
@@ -277,10 +278,6 @@ class Trainer:
             mesh.triangles = o3d.utility.Vector3iVector(f)
             outdir_mesh = os.path.join(dir_mesh, '{:04d}.ply'.format(epoch))
             o3d.io.write_triangle_mesh(outdir_mesh, mesh)
-
-        if self.cfg['train']['vis_psr']:
-            dir_psr_vis = self.cfg['train']['out_dir']+'/psr_vis_all'
-            visualize_psr_grid(psr_grid, out_dir=dir_psr_vis)
             
     def export_mesh(self, inputs, center=None, scale=None):
         psr_grid, points, normals = self.pcl2psr(inputs)

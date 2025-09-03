@@ -78,6 +78,7 @@ full_softzoo_config = SoftzooSimulation.load_config(
 full_softzoo_config.out_dir = LOG_PATH_DICT['softzoo_log_dir']
 general_config['sap_config']['train']['dir_mesh'] = LOG_PATH_DICT['sap_mesh_dir']
 general_config['sap_config']['train']['dir_pcl'] = LOG_PATH_DICT['sap_pcl_dir']
+general_config['sap_config']['train']['dir_train'] = LOG_PATH_DICT['sap_training_dir']
 
 if general_config['cond_config'] is None or len(general_config['cond_config']) == 0:
     cond_fn_lst = [None,None]

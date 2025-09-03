@@ -161,7 +161,7 @@ def init_all_logger(out_dir:str, exp_name:str, tensorboard_log_dir:str):
             'softzoo_loss','softzoo_grad_norm','softzoo_reward',
             'softzoo_mean_loss','softzoo_scaled_mean_grad_norm',
             
-            'loss','grad_norm'
+            'loss','grad_norm','note'
         ]
     )
     logging.basicConfig(

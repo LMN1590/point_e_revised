@@ -108,6 +108,7 @@ sap_config:
   device: cuda:1
   gradient_alpha: 20.0
   save_every_iter: *log_freq
+  save_every_sub_iter: 1
 
 pointe_config:
   base_model_name: base300M

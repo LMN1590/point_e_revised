@@ -34,6 +34,7 @@ class TrainConfig(TypedDict):
     exp_pcl:bool
     dir_pcl:str
     dir_mesh:str
+    dir_train:str
     
     resample_every: int
 
@@ -56,3 +57,4 @@ class SAPConfig(TypedDict):
     device:str
     gradient_alpha:float
     save_every_iter:int
+    save_every_sub_iter: int

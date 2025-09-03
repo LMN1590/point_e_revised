@@ -12,6 +12,7 @@ class LogPathDict(TypedDict):
     
     softzoo_log_dir:str
     
+    sap_training_dir:str
     sap_mesh_dir:str
     sap_pcl_dir:str
 
@@ -29,10 +30,12 @@ def init_log_dir(out_dir:str, exp_name:str, tensorboard_log_dir:str)->LogPathDic
     os.makedirs(softzoo_log_dir,exist_ok=True)
     
     sap_log_dir = os.path.join(exp_dir,'sap')
+    sap_training_dir = os.path.join(sap_log_dir,'training')
     sap_mesh_dir = os.path.join(sap_log_dir,'mesh')
     sap_pcl_dir = os.path.join(sap_log_dir,'pcl')
     os.makedirs(sap_mesh_dir,exist_ok=True)
     os.makedirs(sap_pcl_dir,exist_ok=True)
+    os.makedirs(sap_training_dir,exist_ok=True)
     
     init_all_logger(out_dir, exp_name,tensorboard_log_dir)
     
@@ -43,6 +46,7 @@ def init_log_dir(out_dir:str, exp_name:str, tensorboard_log_dir:str)->LogPathDic
         
         "softzoo_log_dir":softzoo_log_dir,
 
+        'sap_training_dir': sap_training_dir,
         "sap_mesh_dir":sap_mesh_dir,
         "sap_pcl_dir":sap_pcl_dir
     }
