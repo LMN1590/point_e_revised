@@ -37,14 +37,13 @@ softzoo_config:
   save_every_iter: *log_freq
   render_every_iter: *log_freq
   n_iters: 301
-  n_frames: 75
+  n_frames: 150
 
   controller_type: all_on
   action_v_strength: 0.3
 
   loss_types: [GrippingObjectLoss]
   obj_particle_id: 2
-  obj_initial_pos: [0.55, 0.4, 0.4]
 
   seed: *seed  # Placeholder, do not use
   torch_seed: *seed  # Placeholder, do not use
@@ -79,11 +78,11 @@ sap_config:
   train:
     schedule:
       initial: 1e-2
-      interval: 200
+      interval: 150
       factor: 0.5
       final: 1e-3
     
-    total_epochs: 500
+    total_epochs: 400
 
     w_chamfer: 1.
     w_chamfer_v_mesh: 1.
@@ -99,7 +98,7 @@ sap_config:
     exp_mesh: True
     exp_pcl: True
 
-    resample_every: 100
+    resample_every: 80
 
   sample:
     num_points: 10000

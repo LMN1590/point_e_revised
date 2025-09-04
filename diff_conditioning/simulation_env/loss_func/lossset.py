@@ -15,6 +15,7 @@ from .trajectory_following_loss import TrajectoryFollowingLoss
 from .velocity_following_loss import VelocityFollowingLoss
 from .waypoint_following_loss import WaypointFollowingLoss
 from .gripping_obj_loss import GrippingObjectLoss
+from .gripping_obj_loss_old import GrippingObjectLossOld
 
 if TYPE_CHECKING:
     from softzoo.envs.base_env import BaseEnv

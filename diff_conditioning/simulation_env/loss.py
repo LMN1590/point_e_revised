@@ -28,8 +28,10 @@ def make_loss(args:FullConfig, env:BaseEnv, torch_device:str):
             loss_config = dict(x_mul=args.obj_x_mul, obj_particle_id=args.obj_particle_id)
         elif loss_type == 'ObjectVelocityLoss':
             loss_config = dict(v_mul=args.obj_v_mul, obj_particle_id=args.obj_particle_id)
-        elif loss_type == 'GrippingObjectLoss':
+        elif loss_type == 'GrippingObjectLossOld':
             loss_config = dict(obj_particle_id = args.obj_particle_id, obj_initial_pos = args.obj_initial_pos)
+        elif loss_type == 'GrippingObjectLoss':
+            loss_config = dict(obj_particle_id = args.obj_particle_id)
         else:
             raise ValueError(f'Unrecognized loss type {loss_type}')
         loss_configs[loss_type] = loss_config
