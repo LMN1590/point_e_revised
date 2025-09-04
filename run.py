@@ -100,16 +100,20 @@ conditional_emb_npy = np.load(preload_config['condition_embedding']['path'])  \
     if preload_config['condition_embedding']['path'] is not None \
     else np.random.rand(*preload_config['condition_embedding']['shape'])
 conditional_emb_tensor = torch.from_numpy(conditional_emb_npy).to(device = device,dtype=torch.float32)
+np.save(os.path.join(LOG_PATH_DICT['embedding_dir'],'conditional_emb.npy'),conditional_emb_npy)
 
 base_noise_npy = np.load(preload_config['diffusion_noise']['path'])  \
     if preload_config['diffusion_noise']['path'] is not None \
     else np.random.rand(*preload_config['diffusion_noise']['shape'])
 base_noise_tensor = torch.from_numpy(base_noise_npy).to(device = device,dtype=torch.float32)
+np.save(os.path.join(LOG_PATH_DICT['embedding_dir'],'base_noise.npy'),base_noise_npy)
 
 upsample_noise_npy = np.load(preload_config['upsample_noise']['path'])  \
     if preload_config['upsample_noise']['path'] is not None \
     else np.random.rand(*preload_config['upsample_noise']['shape'])
 upsample_noise_tensor = torch.from_numpy(upsample_noise_npy).to(device = device,dtype=torch.float32)
+np.save(os.path.join(LOG_PATH_DICT['embedding_dir'],'upsample_noise.npy'),upsample_noise_npy)
+
 
 pre_noise = [base_noise_tensor,upsample_noise_tensor]
 

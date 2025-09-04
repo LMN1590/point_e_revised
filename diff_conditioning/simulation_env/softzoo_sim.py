@@ -188,7 +188,10 @@ class SoftzooSimulation(BaseCond):
                     batch_idx = i,
                     sampling_step = t_sample,
                     local_iter = local_iter
-                ) # (M,3), device cuda:1        
+                ) # (M,3), device cuda:1      
+                if sap_loss is None: 
+                    logging.warning(f"{self.name}: Gripper cannot be dense sampled. Skipping simulation")
+                    continue  
                 sap_loss_lst.append(sap_loss)
                 dense_gripper.requires_grad = True
                 

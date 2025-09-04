@@ -243,7 +243,7 @@ class Trainer:
 
         return inputs
     
-    def save_mesh_pointclouds(self, inputs, epoch, log_dir:str, center=None, scale=None):
+    def save_mesh_pointclouds(self, inputs, epoch, log_dir:str, center=None, scale=None, save_pcd:bool = True, save_mesh:bool=True):
         '''  Save meshes and point clouds.
         Args:
             inputs (torch.tensor)       : source point clouds
@@ -252,8 +252,8 @@ class Trainer:
             center (numpy.array)        : center of the shape
             scale (numpy.array)         : scale of the shape
         '''
-        exp_pcl = self.cfg['train']['exp_pcl']
-        exp_mesh = self.cfg['train']['exp_mesh']
+        exp_pcl = self.cfg['train']['exp_pcl'] and save_pcd
+        exp_mesh = self.cfg['train']['exp_mesh'] and save_mesh
         
         psr_grid, points, normals = self.pcl2psr(inputs)
         

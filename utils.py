@@ -15,6 +15,8 @@ class LogPathDict(TypedDict):
     sap_training_dir:str
     sap_mesh_dir:str
     sap_pcl_dir:str
+    
+    embedding_dir:str
 
 def init_log_dir(out_dir:str, exp_name:str, tensorboard_log_dir:str,increment_step:float)->LogPathDict:
     exp_dir = os.path.join(out_dir,exp_name)
@@ -37,6 +39,9 @@ def init_log_dir(out_dir:str, exp_name:str, tensorboard_log_dir:str,increment_st
     os.makedirs(sap_pcl_dir,exist_ok=True)
     os.makedirs(sap_training_dir,exist_ok=True)
     
+    embedding_dir = os.path.join(exp_dir,'embeddings')
+    os.makedirs(embedding_dir,exist_ok=True)
+    
     init_all_logger(out_dir, exp_name,tensorboard_log_dir,increment_step=increment_step)
     
     return {
@@ -48,5 +53,6 @@ def init_log_dir(out_dir:str, exp_name:str, tensorboard_log_dir:str,increment_st
 
         'sap_training_dir': sap_training_dir,
         "sap_mesh_dir":sap_mesh_dir,
-        "sap_pcl_dir":sap_pcl_dir
+        "sap_pcl_dir":sap_pcl_dir,
+        "embedding_dir":embedding_dir
     }

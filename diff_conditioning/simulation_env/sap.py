@@ -16,6 +16,7 @@ from sap.utils.gradient_utils import gaussian_kernel
 from sap.optimization import Trainer
 
 from logger import CSVLOGGER
+import logging
 
 class CustomSAP:
     def __init__(self,config:SAPConfig,device:torch.device):
@@ -68,7 +69,7 @@ class CustomSAP:
                     "sap_inputs_grad_norm": grad_norm,
                     "sap_lr": cur_lr,
                     "sap_num_points": inputs.shape[1],
-                    'note':f'Min_{inputs.min(dim=1).values}_Max_{inputs.max(dim=1).values}'
+                    'note':f'Min_{inputs.min(dim=1).values.tolist()}_Max_{inputs.max(dim=1).values.tolist()}'
                 })
                 
                 if loss_each is not None:
@@ -85,10 +86,17 @@ class CustomSAP:
                         optimizer = update_optimizer(inputs,epoch=epoch, schedule=input_scheduler)
                         trainer = Trainer(self.sap_config, optimizer, device=self.device)
             except Exception as e:
+                logging.error(f"SAP Dense Sampling: Encounter Error {e}. Gripper potentially degenerates")
                 cur_training_dir = os.path.join(self.sap_config['train']['dir_train'],f'training_Step_{sampling_step}_Local_{local_iter}_Batch_{batch_idx}')
                 os.makedirs(cur_training_dir,exist_ok=True)
-                trainer.save_mesh_pointclouds(inputs,epoch,cur_training_dir,data['center'].cpu().numpy(), data['scale'].cpu().numpy()*(1/0.9))
-                raise e
+                trainer.save_mesh_pointclouds(
+                    inputs,epoch,cur_training_dir,
+                    data['center'].cpu().numpy(), 
+                    data['scale'].cpu().numpy()*(1/0.9),
+                    save_pcd=True,save_mesh=False
+                )
+                np.save(os.path.join(cur_training_dir,'error_inputs.npy'),inputs.detach().cpu().numpy())
+                return torch.empty(0),None
 
         output_data = self._postprocess(
             inputs,data,trainer
