@@ -22,13 +22,13 @@ cond_overall_logging: True
 preload_emb:
   condition_embedding: 
     shape: [1,1024,256]
-    path: embeddings/conditional_embedding.npy # Path to the precomputed embeddings
+    path: null #embeddings/conditional_embedding.npy # Path to the precomputed embeddings
   diffusion_noise: 
     shape: [2,6,1024]
-    path: embeddings/base_diffusion_noise.npy
+    path: null #embeddings/base_diffusion_noise.npy
   upsample_noise: 
     shape: [1,6,3072]
-    path: embeddings/upsample_diffusion_noise.npy
+    path: null #embeddings/upsample_diffusion_noise.npy
 
 
 softzoo_config:
