@@ -1,6 +1,7 @@
-import os
+import torch
 
-from typing import TypedDict,Tuple
+import os
+from typing import TypedDict,Tuple,Callable
 
 from logger import init_all_logger
 
@@ -56,3 +57,11 @@ def init_log_dir(out_dir:str, exp_name:str, tensorboard_log_dir:str,increment_st
         "sap_pcl_dir":sap_pcl_dir,
         "embedding_dir":embedding_dir
     }
+    
+CLIP_SIZE = (224,224)
+CLIP_MEAN = torch.tensor([0.48145466, 0.4578275, 0.40821073])[None,:,None,None]
+CLIP_STD = torch.tensor([0.26862954, 0.26130258, 0.27577711])[None,:,None,None]
+def sample_random_CLIP_emb(batch_size:int,add_emb_func:Callable[[torch.Tensor],torch.Tensor]):
+    init_sample = torch.rand(batch_size,3,*CLIP_SIZE)
+    return add_emb_func((init_sample - CLIP_MEAN)/CLIP_STD)
+    # return init_sample

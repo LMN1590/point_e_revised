@@ -213,6 +213,35 @@ class ImageCLIP(nn.Module):
 
         return x[..., 1:].contiguous().float() + extra_value
     
+    def embed_preprocessed_images_grid(self, x:torch.Tensor)->torch.Tensor:
+        if self.ensure_used_params:
+            extra_value = 0.0
+            for p in self.parameters():
+                extra_value = extra_value + p.mean() * 0.0
+        else:
+            extra_value = 0.0
+        
+        x = x.to(device = self.device, dtype=self.clip_model.dtype)
+        vt = self.clip_model.visual
+        x = vt.conv1(x)  # shape = [*, width, grid, grid]
+        x = x.reshape(x.shape[0], x.shape[1], -1)  # shape = [*, width, grid ** 2]
+        x = x.permute(0, 2, 1)  # shape = [*, grid ** 2, width]
+        x = torch.cat(
+            [
+                vt.class_embedding.to(x.dtype)
+                + torch.zeros(x.shape[0], 1, x.shape[-1], dtype=x.dtype, device=x.device),
+                x,
+            ],
+            dim=1,
+        )  # shape = [*, grid ** 2 + 1, width]
+        x = x + vt.positional_embedding.to(x.dtype)
+        x = vt.ln_pre(x)
+
+        x = x.permute(1, 0, 2)  # NLD -> LND
+        x = vt.transformer(x)
+        x = x.permute(1, 2, 0)  # LND -> NDL
+
+        return x[..., 1:].contiguous().float() + extra_value
     # endregion
     
     def images_to_tensor(self, xs: Iterable[Optional[ImageType]]) -> torch.Tensor:
@@ -259,6 +288,9 @@ class FrozenImageCLIP:
     def embed_images_grid(self, xs: Iterable[Optional[ImageType]]) -> torch.Tensor:
         with torch.no_grad():
             return self.model.embed_images_grid(xs)
+    def embed_preprocessed_images_grid(self, x:torch.Tensor)->torch.Tensor:
+        with torch.no_grad():
+            return self.model.embed_preprocessed_images_grid(x)
     
 def _image_to_pil(obj: Optional[ImageType]) -> Image.Image:
     if obj is None:

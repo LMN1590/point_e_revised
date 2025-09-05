@@ -1,4 +1,4 @@
-exp_name: debug #custom_emb_grad_ddim256_scale1e-2_clamp1e-3_k5_thresh96_grippingloss_onhand_frame75_dense_sap_seed42_preset_noise
+exp_name: debug #random_emb_grad_ddim256_scale1e-2_clamp1e-3_k5_thresh96_grippinglossnew_frame75_densesap_seed42_presetnoise
 seed: &seed 42
 out_dir: ./logs/
 tensorboard_log_dir: runs/
@@ -6,12 +6,12 @@ save_every_iter: &log_freq 1
 total_steps: 512 # Check diffusion_cfg to see how many steps there are in diffusion (normal diffusion + upsampler)
 substep_count: 5 # remember to update in diffusion config in pointe
 
-cond_config:
-  - name: "SoftZoo_Sim"
-    grad_scale: !!float 1e-2
-    grad_clamp: !!float 1e-3
-    calc_gradient: True
-    logging_bool: True
+cond_config: []
+  # - name: "SoftZoo_Sim"
+  #   grad_scale: !!float 1e-2
+  #   grad_clamp: !!float 1e-3
+  #   calc_gradient: True
+  #   logging_bool: True
   # - name: "Dist_To_Origin"
   #   grad_scale: !!float 1e0
   #   grad_clamp: !!float 1e-2
@@ -22,13 +22,13 @@ cond_overall_logging: True
 preload_emb:
   condition_embedding: 
     shape: [1,1024,256]
-    path: null #embeddings/conditional_embedding.npy # Path to the precomputed embeddings
+    path: null #logs/random_emb_grad_ddim256_scale1e-2_clamp1e-3_k5_thresh96_grippinglossnew_frame75_densesap_seed42_presetnoise/embeddings/conditional_emb.npy # Path to the precomputed embeddings
   diffusion_noise: 
     shape: [2,6,1024]
-    path: null #embeddings/base_diffusion_noise.npy
+    path: logs/random_emb_grad_ddim256_scale1e-2_clamp1e-3_k5_thresh96_grippinglossnew_frame75_densesap_seed42_presetnoise/embeddings/base_noise.npy
   upsample_noise: 
     shape: [1,6,3072]
-    path: null #embeddings/upsample_diffusion_noise.npy
+    path: logs/random_emb_grad_ddim256_scale1e-2_clamp1e-3_k5_thresh96_grippinglossnew_frame75_densesap_seed42_presetnoise/embeddings/upsample_noise.npy
 
 
 softzoo_config:
@@ -59,6 +59,7 @@ softzoo_config:
     min: [-0.5,-0.5,-0.5]
 
   design_device: cpu
+  obj_initial_pos: [0,0,0]
 
 sap_config:
   data:
