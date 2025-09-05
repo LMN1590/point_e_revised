@@ -14,6 +14,7 @@ class ConditioningConfig(TypedDict):
 class EmbeddingConfig(TypedDict):
     shape:List[int]
     path:Optional[str]
+    random:bool
 
 class GeneralConfig(TypedDict):
     exp_name: str

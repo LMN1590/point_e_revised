@@ -1,17 +1,17 @@
-exp_name: debug #random_emb_grad_ddim256_scale1e-2_clamp1e-3_k5_thresh96_grippinglossnew_frame75_densesap_seed42_presetnoise
-seed: &seed 42
+exp_name: zero_emb_grad_scale1e-2_clamp1e-3_k5_thresh96_grippinglossnew_frame150_seed100
+seed: &seed 100
 out_dir: ./logs/
 tensorboard_log_dir: runs/
 save_every_iter: &log_freq 1
 total_steps: 512 # Check diffusion_cfg to see how many steps there are in diffusion (normal diffusion + upsampler)
 substep_count: 5 # remember to update in diffusion config in pointe
 
-cond_config: []
-  # - name: "SoftZoo_Sim"
-  #   grad_scale: !!float 1e-2
-  #   grad_clamp: !!float 1e-3
-  #   calc_gradient: True
-  #   logging_bool: True
+cond_config:
+  - name: "SoftZoo_Sim"
+    grad_scale: !!float 1e-2
+    grad_clamp: !!float 1e-3
+    calc_gradient: True
+    logging_bool: True
   # - name: "Dist_To_Origin"
   #   grad_scale: !!float 1e0
   #   grad_clamp: !!float 1e-2
@@ -21,15 +21,15 @@ cond_overall_logging: True
 
 preload_emb:
   condition_embedding: 
-    shape: [1,1024,256]
-    path: null #logs/random_emb_grad_ddim256_scale1e-2_clamp1e-3_k5_thresh96_grippinglossnew_frame75_densesap_seed42_presetnoise/embeddings/conditional_emb.npy # Path to the precomputed embeddings
+    shape: [1,3,224,224]
+    path: null #logs/normal_nosim_random_img/embeddings/conditional_emb.npy
+    random: False
   diffusion_noise: 
     shape: [2,6,1024]
-    path: logs/random_emb_grad_ddim256_scale1e-2_clamp1e-3_k5_thresh96_grippinglossnew_frame75_densesap_seed42_presetnoise/embeddings/base_noise.npy
+    path: null
   upsample_noise: 
     shape: [1,6,3072]
-    path: logs/random_emb_grad_ddim256_scale1e-2_clamp1e-3_k5_thresh96_grippinglossnew_frame75_densesap_seed42_presetnoise/embeddings/upsample_noise.npy
-
+    path: null
 
 softzoo_config:
   out_dir: null # Placeholder, need to be set in run.py
@@ -79,11 +79,11 @@ sap_config:
   train:
     schedule:
       initial: 1e-2
-      interval: 150
+      interval: 200
       factor: 0.5
       final: 1e-3
     
-    total_epochs: 400
+    total_epochs: 500
 
     w_chamfer: 1.
     w_chamfer_v_mesh: 1.
@@ -99,7 +99,7 @@ sap_config:
     exp_mesh: True
     exp_pcl: True
 
-    resample_every: 80
+    resample_every: 75
 
   sample:
     num_points: 10000

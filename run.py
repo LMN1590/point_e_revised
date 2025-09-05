@@ -95,16 +95,33 @@ else:
 # endregion
 
 # region Run Sampling
-from utils import sample_random_CLIP_emb
+from PIL import Image
+from utils import sample_random_CLIP_emb,sample_from_img
+import shutil
+from torchvision import transforms
 
 preload_config = general_config['preload_emb']
 if preload_config['condition_embedding']['path'] is not None:
-    conditional_emb_npy = np.load(preload_config['condition_embedding']['path'])
-    conditional_emb_tensor = torch.from_numpy(conditional_emb_npy).to(device = device,dtype=torch.float32)
+    path = preload_config['condition_embedding']['path']
+    if path.split('.')[-1] == 'npy':
+        # Read .npy
+        conditional_emb_npy = np.load(preload_config['condition_embedding']['path'])
+        conditional_emb_tensor = torch.from_numpy(conditional_emb_npy).to(device = device,dtype=torch.float32)
+    else:
+        # Read Images
+        shutil.copy(path,os.path.join(LOG_PATH_DICT['embedding_dir'],f'conditional_img.{path.split(".")[-1]}'))
+        img = Image.open(path)
+        conditional_emb_tensor = sample_from_img([img],base_model.clip.embed_images_grid).to(device = device,dtype=torch.float32)
 else:
-    conditional_emb_tensor = sample_random_CLIP_emb(preload_config['condition_embedding']['shape'][0],base_model.clip.embed_preprocessed_images_grid).to(device = device,dtype=torch.float32)
-    print(conditional_emb_tensor.shape,conditional_emb_tensor.min(),conditional_emb_tensor.max())
-np.save(os.path.join(LOG_PATH_DICT['embedding_dir'],'conditional_emb.npy'),conditional_emb_tensor.detach().cpu().numpy())
+    if preload_config['condition_embedding']['random']:
+        init_sample = torch.rand(*preload_config['condition_embedding']['shape'])
+    else:
+        init_sample = torch.zeros(*preload_config['condition_embedding']['shape'])
+    image = transforms.ToPILImage()(init_sample[0]).save(
+        os.path.join(LOG_PATH_DICT['embedding_dir'],'conditional_img.png')
+    )
+    conditional_emb_tensor = sample_random_CLIP_emb(init_sample,base_model.clip.embed_preprocessed_images_grid).to(device = device,dtype=torch.float32)
+np.save(os.path.join(LOG_PATH_DICT['embedding_dir'],f'conditional_emb_{"random" if preload_config["condition_embedding"]["random"] else "zero"}.npy'),conditional_emb_tensor.detach().cpu().numpy())
 
 base_noise_npy = np.load(preload_config['diffusion_noise']['path'])  \
     if preload_config['diffusion_noise']['path'] is not None \
