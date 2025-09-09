@@ -94,7 +94,7 @@ else:
     
 # endregion
 
-# region Run Sampling
+# region Load Noise
 from PIL import Image
 from utils import sample_random_CLIP_emb,sample_from_img
 import shutil
@@ -125,18 +125,20 @@ np.save(os.path.join(LOG_PATH_DICT['embedding_dir'],f'conditional_emb_{"random" 
 
 base_noise_npy = np.load(preload_config['diffusion_noise']['path'])  \
     if preload_config['diffusion_noise']['path'] is not None \
-    else np.random.rand(*preload_config['diffusion_noise']['shape'])
+    else np.random.randn(*preload_config['diffusion_noise']['shape'])
 base_noise_tensor = torch.from_numpy(base_noise_npy).to(device = device,dtype=torch.float32)
 np.save(os.path.join(LOG_PATH_DICT['embedding_dir'],'base_noise.npy'),base_noise_npy)
 
 upsample_noise_npy = np.load(preload_config['upsample_noise']['path'])  \
     if preload_config['upsample_noise']['path'] is not None \
-    else np.random.rand(*preload_config['upsample_noise']['shape'])
+    else np.random.randn(*preload_config['upsample_noise']['shape'])
 upsample_noise_tensor = torch.from_numpy(upsample_noise_npy).to(device = device,dtype=torch.float32)
 np.save(os.path.join(LOG_PATH_DICT['embedding_dir'],'upsample_noise.npy'),upsample_noise_npy)
 
 pre_noise = [base_noise_tensor,upsample_noise_tensor]
+# endregion
 
+# region Run Sampling
 final_sample:torch.Tensor = None
 count = 0
 for x in tqdm(sampler.sample_batch_progressive(
