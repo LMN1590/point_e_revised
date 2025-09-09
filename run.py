@@ -114,7 +114,7 @@ if preload_config['condition_embedding']['path'] is not None:
         conditional_emb_tensor = sample_from_img([img],base_model.clip.embed_images_grid).to(device = device,dtype=torch.float32)
 else:
     if preload_config['condition_embedding']['random']:
-        init_sample = torch.rand(*preload_config['condition_embedding']['shape'])
+        init_sample = torch.randn(*preload_config['condition_embedding']['shape'])
     else:
         init_sample = torch.zeros(*preload_config['condition_embedding']['shape'])
     image = transforms.ToPILImage()(init_sample[0]).save(

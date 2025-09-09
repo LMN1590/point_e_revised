@@ -1,4 +1,4 @@
-exp_name: debug_ddim #hand_img_grad_scale1e-2_clamp1e-3_k5_thresh96_grippinglossnew_frame150_seed310_alpha_5
+exp_name: hand_img_grad_scale1e-2_clamp1e-3_k5_thresh96_grippinglossnew_frame150_seed310_alpha_5
 seed: &seed 310
 out_dir: ./logs/
 tensorboard_log_dir: runs/
