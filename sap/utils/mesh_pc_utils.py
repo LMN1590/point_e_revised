@@ -1,5 +1,6 @@
 import numpy as np
 import torch
+import torch.nn.functional as F
 
 import trimesh
 import open3d as o3d
@@ -22,6 +23,7 @@ def mc_from_psr_gpu(psr_grid:torch.Tensor, pytorchify=False, real_scale=False, z
         real_scale (bool): if True, scale verts by (s-1), else by s
         zero_level (float): isosurface threshold, usually 0 for PSR
     """
+    
     device = psr_grid.device
     batch_size, s = psr_grid.shape[0], psr_grid.shape[-1]
     if psr_grid.dim() == 5 and psr_grid.shape[1] == 1:
@@ -42,7 +44,31 @@ def mc_from_psr_gpu(psr_grid:torch.Tensor, pytorchify=False, real_scale=False, z
     else:
         verts = verts / s # scale to range [0, 1)
     
-    normals = torch.zeros_like(verts, device=device)
+    # 3. Compute gradient field of psr_grid
+    gx = F.pad(psr_grid[:, 2:, :, :] - psr_grid[:, :-2, :, :], (0,0,0,0,1,1)) / 2
+    gy = F.pad(psr_grid[:, :, 2:, :] - psr_grid[:, :, :-2, :], (0,0,1,1,0,0)) / 2
+    gz = F.pad(psr_grid[:, :, :, 2:] - psr_grid[:, :, :, :-2], (1,1,0,0,0,0)) / 2
+    grad = torch.stack([gx, gy, gz], dim=1)  # [B, 3, D, H, W]
+
+    # 4. Sample gradient at vertex positions
+    if batch_size > 1:
+        verts_grid = 2 * verts - 1              # [B, V, 3], map to [-1,1]
+        verts_grid = verts_grid[:, None, :, None, :]   # [B,1,V,1,3]
+        grad_interp = F.grid_sample(
+            grad, verts_grid, align_corners=True, mode="bilinear"
+        )  # [B,3,1,V,1]
+        grad_interp = grad_interp.squeeze(2).squeeze(-1).transpose(1, 2)  # [B,V,3]
+        normals = -grad_interp
+        normals = normals / (normals.norm(dim=-1, keepdim=True) + 1e-8)
+    else:
+        verts_grid = 2 * verts[None, :, :] - 1   # [1,V,3]
+        verts_grid = verts_grid[:, None, :, None, :]   # [1,1,V,1,3]
+        grad_interp = F.grid_sample(
+            grad, verts_grid, align_corners=True, mode="bilinear"
+        )  # [1,3,1,V,1]
+        grad_interp = grad_interp.squeeze(0).squeeze(1).squeeze(-1).transpose(0, 1)  # [V,3]
+        normals = -grad_interp
+        normals = normals / (normals.norm(dim=-1, keepdim=True) + 1e-8)
 
     if pytorchify:
         return verts,faces,normals

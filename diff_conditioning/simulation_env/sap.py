@@ -89,7 +89,6 @@ class CustomSAP:
                         trainer = Trainer(self.sap_config, optimizer, device=self.device)
             except Exception as e:
                 logging.error(f"SAP Dense Sampling: Encounter Error {e}. Gripper potentially degenerates")
-                raise e
                 cur_training_dir = os.path.join(self.sap_config['train']['dir_train'],f'training_Step_{sampling_step}_Local_{local_iter}_Batch_{batch_idx}')
                 os.makedirs(cur_training_dir,exist_ok=True)
                 trainer.save_mesh_pointclouds(
