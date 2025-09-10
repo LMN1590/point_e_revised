@@ -14,66 +14,71 @@ import kaolin
 from typing import Union
 import logging
 
+import torch
+import torch.nn.functional as F
+
 def compute_normals(psr_grid, verts):
     """
-    Compute Lewiner-style normals (gradient of interpolated scalar field)
-    at marching cubes vertices.
+    Vectorized Lewiner-style normals:
+      - psr_grid: [B, D, H, W] or [D, H, W]
+      - verts:    [B, V, 3] or [V, 3]  (voxel coordinates in same indexing as psr_grid)
+    Returns normals in same batch shape: [B, V, 3] or [V, 3].
 
-    Args:
-        psr_grid: [B, D, H, W] scalar field tensor (float, on GPU).
-        verts: [B, V, 3] or [V, 3] vertex positions in voxel coords.
-
-    Returns:
-        normals: [B, V, 3] or [V, 3] unit normals.
+    Safety guarantees:
+      - Does not propagate grads back to the incoming `verts`.
+      - Does not create a gradient path into `psr_grid`.
+      - Uses grid_sample (trilinear) and autograd.grad in a single vectorized call.
     """
     single_batch = False
-    if verts.ndim == 2:  # [V,3]
-        verts = verts.unsqueeze(0)      # [1,V,3]
-        if psr_grid.ndim == 3:          # [D,H,W]
-            psr_grid = psr_grid.unsqueeze(0)  # [1,D,H,W]
+    if verts.ndim == 2:                # [V,3] -> [1,V,3]
+        verts = verts.unsqueeze(0)
+        if psr_grid.ndim == 3:         # [D,H,W] -> [1,D,H,W]
+            psr_grid = psr_grid.unsqueeze(0)
         single_batch = True
 
-    B, D, H, W = psr_grid.shape
+    B, D, H, W = psr_grid.shape  # psr_grid assumed float on correct device
     V = verts.shape[1]
 
-    # Normalize verts to [-1,1] for grid_sample
-    verts_norm = verts.clone()
-    verts_norm[..., 0] = 2.0 * (verts[..., 0] / (D - 1)) - 1.0
-    verts_norm[..., 1] = 2.0 * (verts[..., 1] / (H - 1)) - 1.0
-    verts_norm[..., 2] = 2.0 * (verts[..., 2] / (W - 1)) - 1.0
-    verts_norm = verts_norm[:, None, :, None, :]  # [B,1,V,1,3]
+    # --- Detach original verts to avoid leaking upstream gradients ---
+    # Use detached copy to compute normalized coordinates. This prevents contamination.
+    v_det = verts.detach().clone()  # now v_det is independent of caller's computation graph
 
-    # Enable grad tracking on verts (not psr_grid!) for local diff
-    verts_norm = verts_norm.detach().requires_grad_(True)
+    # Build normalized coords (no in-place ops)
+    denom = torch.tensor([D - 1, H - 1, W - 1], device=v_det.device, dtype=v_det.dtype)
+    # Broadcast division across last dim
+    verts_norm = 2.0 * (v_det / denom) - 1.0       # [B, V, 3]
 
-    # Scalar field: [B,1,D,H,W]
-    psr_grid_ = psr_grid[:, None]  # add channel dim, no grad needed
+    # Shape for grid_sample: [B, 1, V, 1, 3]
+    verts_grid = verts_norm[:, None, :, None, :].clone().requires_grad_(True)
 
-    # Interpolated values at verts
-    values = F.grid_sample(
-        psr_grid_, verts_norm, mode="bilinear", align_corners=True
-    )  # [B,1,1,V,1]
-    values = values.squeeze(1).squeeze(1).squeeze(-1)  # [B,V]
+    # Add channel dim to scalar field: [B,1,D,H,W]
+    psr_grid_ = psr_grid[:, None]
 
-    # Backprop once per batch: get ∇field w.r.t. verts
+    # Interpolate scalar at vertex coordinates (trilinear)
+    values = F.grid_sample(psr_grid_, verts_grid, mode="bilinear", align_corners=True)
+    # values: [B,1,1,V,1] -> [B, V]
+    values = values.squeeze(1).squeeze(1).squeeze(-1)
+
+    # Vectorized gradient of sum(values) w.r.t verts_grid (single backward pass)
     grads = torch.autograd.grad(
-        outputs=values.sum(),    # scalar per batch
-        inputs=verts_norm,
+        outputs=values.sum(),
+        inputs=verts_grid,
         create_graph=False,
         retain_graph=False,
         only_inputs=True
     )[0]  # [B,1,V,1,3]
 
-    grads = grads[:, 0, :, 0, :]  # [B,V,3]
+    grads = grads[:, 0, :, 0, :]  # [B, V, 3]
 
-    # Outward normals = -gradient, normalized
+    # Normals: outward = -gradient, normalized
     normals = -grads
     normals = normals / (normals.norm(dim=-1, keepdim=True) + 1e-8)
 
     if single_batch:
-        normals = normals[0]
+        normals = normals[0]  # return [V,3]
 
     return normals
+
 
 def mc_from_psr(psr_grid:torch.Tensor, pytorchify=False, real_scale=False, zero_level=0):
     """
