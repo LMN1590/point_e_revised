@@ -24,6 +24,8 @@ def mc_from_psr_gpu(psr_grid:torch.Tensor, pytorchify=False, real_scale=False, z
     """
     device = psr_grid.device
     batch_size, s = psr_grid.shape[0], psr_grid.shape[-1]
+    if psr_grid.dim() == 5 and psr_grid.shape[1] == 1:
+        psr_grid = psr_grid.squeeze(1)
     try:
         verts_list, faces_list = marching_cubes(psr_grid, isolevel=zero_level, return_local_coords=False)
     except Exception as e:
