@@ -11,7 +11,7 @@ from typing import Dict
 from sap.config_dataclass import SAPConfig
 from sap.utils.schedule_utils import StepLearningRateSchedule,adjust_learning_rate
 from sap.utils.optimizer_utils import update_optimizer
-from sap.utils.mesh_pc_utils import sample_pc_in_mesh,mc_from_psr,sample_pc_in_mesh_gpu_optim
+from sap.utils.mesh_pc_utils import sample_pc_in_mesh,mc_from_psr_gpu,sample_pc_in_mesh_gpu_optim
 from sap.utils.gradient_utils import gaussian_kernel
 from sap.optimization import Trainer
 
@@ -22,11 +22,13 @@ class CustomSAP:
     def __init__(self,config:SAPConfig,device:torch.device):
         self.sap_config = config
         self.device = device
+        self.initial_input = self._prepare_input()
     
     def dense_sample(self,x_0:torch.Tensor,batch_idx:int,sampling_step:int, local_iter:int):
         # x_0: (N,3)
         data = self._preprocess(x_0)
-        inputs = self._prepare_input()
+        inputs = self.initial_input.clone().detach()
+        inputs.requires_grad_()
         
         input_scheduler = StepLearningRateSchedule(
             initial = self.sap_config['train']['schedule']['initial'],
@@ -147,14 +149,13 @@ class CustomSAP:
         
         points = torch.log(points/(1-points)) # inverse sigmoid
         inputs = torch.cat([points, normals], dim=-1).float()
-        inputs.requires_grad = True
-        
+        # inputs.requires_grad = True
         return inputs
     
     def _postprocess(self,inputs:torch.Tensor,data:Dict,trainer:Trainer):
         psr_grid, points, normals = trainer.pcl2psr(inputs)
         with torch.no_grad():
-            v, f, _ = mc_from_psr(psr_grid,zero_level=trainer.cfg['data']['zero_level'], real_scale=True,pytorchify=True)
+            v, f, _ = mc_from_psr_gpu(psr_grid,zero_level=trainer.cfg['data']['zero_level'], real_scale=True,pytorchify=True)
             v = v * 2 - 1
             if data['scale'] is not None:
                 v *= data['scale']

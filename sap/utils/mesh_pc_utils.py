@@ -7,10 +7,46 @@ from skimage import measure
 from igl import adjacency_matrix, connected_components
 from pytorch3d.structures import Meshes
 from pytorch3d.renderer import PerspectiveCameras, rasterize_meshes
+from pytorch3d.ops.marching_cubes import marching_cubes
 import kaolin
 
 from typing import Union
 import logging
+def mc_from_psr_gpu(psr_grid:torch.Tensor, pytorchify=False, real_scale=False, zero_level=0):
+    """
+    Run marching cubes from PSR grid using PyTorch3D (GPU). Normals are not calculated here.
+    
+    Args:
+        psr_grid (Tensor):  (B,D,H,W) signed PSR scalar field
+        pytorchify (bool): return torch tensors (on same device) instead of numpy
+        real_scale (bool): if True, scale verts by (s-1), else by s
+        zero_level (float): isosurface threshold, usually 0 for PSR
+    """
+    device = psr_grid.device
+    batch_size, s = psr_grid.shape[0], psr_grid.shape[-1]
+    try:
+        verts_list, faces_list = marching_cubes(psr_grid, isolevel=zero_level, return_local_coords=False)
+    except Exception as e:
+        verts_list, faces_list = marching_cubes(psr_grid, return_local_coords=False)
+    if batch_size >1:
+        verts = torch.stack(verts_list,dim=0)
+        faces = torch.stack(faces_list,dim=0)
+    else:
+        verts = verts_list[0]
+        faces = faces_list[0]    
+    
+    if real_scale:
+        verts = verts / (s-1) # scale to range [0, 1]
+    else:
+        verts = verts / s # scale to range [0, 1)
+    
+    normals = torch.zeros_like(verts, device=device)
+
+    if pytorchify:
+        return verts,faces,normals
+    else:
+        return verts.detach().cpu().numpy(),faces.detach().cpu().numpy(),normals.detach().cpu().numpy()
+    
 
 def mc_from_psr(psr_grid:torch.Tensor, pytorchify=False, real_scale=False, zero_level=0):
     '''
@@ -19,7 +55,7 @@ def mc_from_psr(psr_grid:torch.Tensor, pytorchify=False, real_scale=False, zero_
     batch_size = psr_grid.shape[0]
     s = psr_grid.shape[-1] # size of psr_grid
     psr_grid_numpy = psr_grid.squeeze().detach().cpu().numpy()
-    
+
     if batch_size>1:
         verts, faces, normals = [], [], []
         for i in range(batch_size):
