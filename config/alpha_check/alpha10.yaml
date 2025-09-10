@@ -1,4 +1,4 @@
-exp_name: scale_check_hand_img_grad_scale1e-3_clamp1e-4_k3_thresh96_grippinglossnew_frame150_seed310_alpha_10_ddim256
+exp_name: alpha_check_hand_img_grad_scale1e-3_clamp1e-4_k3_thresh96_grippinglossnew_frame150_seed310_alpha_10_ddim256
 seed: &seed 310
 out_dir: ./logs/
 tensorboard_log_dir: runs/
