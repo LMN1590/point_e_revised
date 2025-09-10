@@ -12,7 +12,7 @@ from sap.config_dataclass import SAPConfig
 
 from .model import PSR2Mesh
 from .dpsr import DPSR
-from .utils.mesh_pc_utils import mc_from_psr_gpu,verts_on_largest_mesh,export_pointcloud
+from .utils.mesh_pc_utils import mc_from_psr,verts_on_largest_mesh,export_pointcloud
 from .utils.visualize_utils import visualize_psr_grid
 from .loss import chamfer_distance_surface
 
@@ -221,7 +221,7 @@ class Trainer:
 
         # [hack] for points resampled from the mesh from marching cubes, 
         # we need to divide by s instead of (s-1), and the scale is correct.
-        verts, faces, _ = mc_from_psr_gpu(psr_grid, real_scale=False, zero_level=0)
+        verts, faces, _ = mc_from_psr(psr_grid, real_scale=False, zero_level=0)
 
         # find the largest component
         pts_mesh, faces_mesh = verts_on_largest_mesh(verts, faces)
@@ -272,7 +272,7 @@ class Trainer:
             dir_mesh = os.path.join(log_dir,'mesh')
             os.makedirs(dir_mesh,exist_ok=True)
             with torch.no_grad():
-                v, f, _ = mc_from_psr_gpu(psr_grid,
+                v, f, _ = mc_from_psr(psr_grid,
                         zero_level=self.cfg['data']['zero_level'], real_scale=True)
                 v = v * 2 - 1
                 if scale is not None:
@@ -288,7 +288,7 @@ class Trainer:
     def export_mesh(self, inputs, center=None, scale=None):
         psr_grid, points, normals = self.pcl2psr(inputs)
         with torch.no_grad():
-            v, f, _ = mc_from_psr_gpu(psr_grid,zero_level=self.cfg['data']['zero_level'], real_scale=True)
+            v, f, _ = mc_from_psr(psr_grid,zero_level=self.cfg['data']['zero_level'], real_scale=True)
             v = v * 2 - 1
             if scale is not None:
                 v *= scale

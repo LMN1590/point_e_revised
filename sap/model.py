@@ -3,7 +3,7 @@ import numpy as np
 
 import time
 
-from .utils.mesh_pc_utils import mc_from_psr_gpu,calc_inters_points
+from .utils.mesh_pc_utils import mc_from_psr,calc_inters_points
 from .utils.dpsr_utils import point_rasterize,grid_interp
 
 class PSR2Mesh(torch.autograd.Function):
@@ -15,7 +15,7 @@ class PSR2Mesh(torch.autograd.Function):
         to stash information for backward computation. You can cache arbitrary
         objects for use in the backward pass using the ctx.save_for_backward method.
         """
-        verts, faces, normals = mc_from_psr_gpu(psr_grid, pytorchify=True)
+        verts, faces, normals = mc_from_psr(psr_grid, pytorchify=True)
         verts = verts.unsqueeze(0)
         faces = faces.unsqueeze(0)
         normals = normals.unsqueeze(0)
@@ -44,7 +44,7 @@ class PSR2Mesh(torch.autograd.Function):
 class PSR2SurfacePoints(torch.autograd.Function):
     @staticmethod
     def forward(ctx, psr_grid, poses, img_size, uv, psr_grad, mask_sample):
-        verts, faces, normals = mc_from_psr_gpu(psr_grid, pytorchify=True)
+        verts, faces, normals = mc_from_psr(psr_grid, pytorchify=True)
         verts = verts * 2. - 1. # within the range of [-1, 1]
 
         

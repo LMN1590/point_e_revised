@@ -11,7 +11,7 @@ from typing import Dict
 from sap.config_dataclass import SAPConfig
 from sap.utils.schedule_utils import StepLearningRateSchedule,adjust_learning_rate
 from sap.utils.optimizer_utils import update_optimizer
-from sap.utils.mesh_pc_utils import sample_pc_in_mesh,mc_from_psr_gpu,sample_pc_in_mesh_gpu_optim
+from sap.utils.mesh_pc_utils import sample_pc_in_mesh,mc_from_psr,sample_pc_in_mesh_gpu_optim
 from sap.utils.gradient_utils import gaussian_kernel
 from sap.optimization import Trainer
 
@@ -156,7 +156,7 @@ class CustomSAP:
     def _postprocess(self,inputs:torch.Tensor,data:Dict,trainer:Trainer):
         psr_grid, points, normals = trainer.pcl2psr(inputs)
         with torch.no_grad():
-            v, f, _ = mc_from_psr_gpu(psr_grid,zero_level=trainer.cfg['data']['zero_level'], real_scale=True,pytorchify=True)
+            v, f, _ = mc_from_psr(psr_grid,zero_level=trainer.cfg['data']['zero_level'], real_scale=True,pytorchify=True)
             v = v * 2 - 1
             if data['scale'] is not None:
                 v *= data['scale']
