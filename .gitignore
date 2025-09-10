@@ -8,4 +8,4 @@ runs/
 out/
 runs_temp/
 archive/
-img_asset/
+# img_asset/
