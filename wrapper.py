@@ -9,3 +9,4 @@ config_files = [
 
 for file in config_files:
     os.system(f'python run.py --config_path {file}')
+    # print(f'python run.py --config_path {file}')

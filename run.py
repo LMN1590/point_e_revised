@@ -177,7 +177,7 @@ def main(config_path:str):
 if __name__ == "__main__":
     import argparse
     parser = argparse.ArgumentParser()
-    parser.add_argument("config_path",type=str,required=True,help='Path to the config .yaml file')
+    parser.add_argument("--config_path",type=str,help='Path to the config .yaml file')
     
     args = parser.parse_args()
     main(args.config_path)
