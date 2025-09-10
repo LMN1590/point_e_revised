@@ -13,70 +13,107 @@ import kaolin
 
 from typing import Union
 import logging
-# def mc_from_psr_gpu(psr_grid:torch.Tensor, pytorchify=False, real_scale=False, zero_level=0):
-#     """
-#     Run marching cubes from PSR grid using PyTorch3D (GPU). Normals are not calculated here.
-    
-#     Args:
-#         psr_grid (Tensor):  (B,D,H,W) signed PSR scalar field
-#         pytorchify (bool): return torch tensors (on same device) instead of numpy
-#         real_scale (bool): if True, scale verts by (s-1), else by s
-#         zero_level (float): isosurface threshold, usually 0 for PSR
-#     """
-    
-#     device = psr_grid.device
-#     batch_size, s = psr_grid.shape[0], psr_grid.shape[-1]
-#     if psr_grid.dim() == 5 and psr_grid.shape[1] == 1:
-#         psr_grid = psr_grid.squeeze(1)
-#     try:
-#         verts_list, faces_list = marching_cubes(psr_grid, isolevel=zero_level, return_local_coords=False)
-#     except Exception as e:
-#         verts_list, faces_list = marching_cubes(psr_grid, return_local_coords=False)
-#     if batch_size >1:
-#         verts = torch.stack(verts_list,dim=0)
-#         faces = torch.stack(faces_list,dim=0)
-#     else:
-#         verts = verts_list[0]
-#         faces = faces_list[0]    
-    
-#     if real_scale:
-#         verts = verts / (s-1) # scale to range [0, 1]
-#     else:
-#         verts = verts / s # scale to range [0, 1)
-    
-#     # 3. Compute gradient field of psr_grid
-#     gx = F.pad(psr_grid[:, 2:, :, :] - psr_grid[:, :-2, :, :], (0,0,0,0,1,1)) / 2
-#     gy = F.pad(psr_grid[:, :, 2:, :] - psr_grid[:, :, :-2, :], (0,0,1,1,0,0)) / 2
-#     gz = F.pad(psr_grid[:, :, :, 2:] - psr_grid[:, :, :, :-2], (1,1,0,0,0,0)) / 2
-#     grad = torch.stack([gx, gy, gz], dim=1)  # [B, 3, D, H, W]
 
-#     # 4. Sample gradient at vertex positions
-#     if batch_size > 1:
-#         verts_grid = 2 * verts - 1              # [B, V, 3], map to [-1,1]
-#         verts_grid = verts_grid[:, None, :, None, :]   # [B,1,V,1,3]
-#         grad_interp = F.grid_sample(
-#             grad, verts_grid, align_corners=True, mode="bilinear"
-#         )  # [B,3,1,V,1]
-#         grad_interp = grad_interp.squeeze(2).squeeze(-1).transpose(1, 2)  # [B,V,3]
-#         normals = -grad_interp
-#         normals = normals / (normals.norm(dim=-1, keepdim=True) + 1e-8)
-#     else:
-#         verts_grid = 2 * verts[None, :, :] - 1   # [1,V,3]
-#         verts_grid = verts_grid[:, None, :, None, :]   # [1,1,V,1,3]
-#         grad_interp = F.grid_sample(
-#             grad, verts_grid, align_corners=True, mode="bilinear"
-#         )  # [1,3,1,V,1]
-#         grad_interp = grad_interp.squeeze(0).squeeze(1).squeeze(-1).transpose(0, 1)  # [V,3]
-#         normals = -grad_interp
-#         normals = normals / (normals.norm(dim=-1, keepdim=True) + 1e-8)
+def compute_normals(psr_grid, verts):
+    """
+    Compute Lewiner-style normals (gradient of interpolated scalar field)
+    at marching cubes vertices.
 
-#     if pytorchify:
-#         return verts,faces,normals
-#     else:
-#         return verts.detach().cpu().numpy(),faces.detach().cpu().numpy(),normals.detach().cpu().numpy()
-    
+    Args:
+        psr_grid: [B, D, H, W] scalar field tensor (float, on GPU).
+        verts: [B, V, 3] or [V, 3] vertex positions in voxel coords.
+
+    Returns:
+        normals: [B, V, 3] or [V, 3] unit normals.
+    """
+    single_batch = False
+    if verts.ndim == 2:  # [V,3]
+        verts = verts.unsqueeze(0)      # [1,V,3]
+        if psr_grid.ndim == 3:          # [D,H,W]
+            psr_grid = psr_grid.unsqueeze(0)  # [1,D,H,W]
+        single_batch = True
+
+    B, D, H, W = psr_grid.shape
+    V = verts.shape[1]
+
+    # Normalize verts to [-1,1] for grid_sample
+    verts_norm = verts.clone()
+    verts_norm[..., 0] = 2.0 * (verts[..., 0] / (D - 1)) - 1.0
+    verts_norm[..., 1] = 2.0 * (verts[..., 1] / (H - 1)) - 1.0
+    verts_norm[..., 2] = 2.0 * (verts[..., 2] / (W - 1)) - 1.0
+    verts_norm = verts_norm[:, None, :, None, :]  # [B,1,V,1,3]
+
+    # Enable grad tracking on verts (not psr_grid!) for local diff
+    verts_norm = verts_norm.detach().requires_grad_(True)
+
+    # Scalar field: [B,1,D,H,W]
+    psr_grid_ = psr_grid[:, None]  # add channel dim, no grad needed
+
+    # Interpolated values at verts
+    values = F.grid_sample(
+        psr_grid_, verts_norm, mode="bilinear", align_corners=True
+    )  # [B,1,1,V,1]
+    values = values.squeeze(1).squeeze(1).squeeze(-1)  # [B,V]
+
+    # Backprop once per batch: get ∇field w.r.t. verts
+    grads = torch.autograd.grad(
+        outputs=values.sum(),    # scalar per batch
+        inputs=verts_norm,
+        create_graph=False,
+        retain_graph=False,
+        only_inputs=True
+    )[0]  # [B,1,V,1,3]
+
+    grads = grads[:, 0, :, 0, :]  # [B,V,3]
+
+    # Outward normals = -gradient, normalized
+    normals = -grads
+    normals = normals / (normals.norm(dim=-1, keepdim=True) + 1e-8)
+
+    if single_batch:
+        normals = normals[0]
+
+    return normals
 
 def mc_from_psr(psr_grid:torch.Tensor, pytorchify=False, real_scale=False, zero_level=0):
+    """
+    Run marching cubes from PSR grid using PyTorch3D (GPU). Normals are not calculated here.
+    
+    Args:
+        psr_grid (Tensor):  (B,D,H,W) signed PSR scalar field
+        pytorchify (bool): return torch tensors (on same device) instead of numpy
+        real_scale (bool): if True, scale verts by (s-1), else by s
+        zero_level (float): isosurface threshold, usually 0 for PSR
+    """
+    
+    device = psr_grid.device
+    batch_size, s = psr_grid.shape[0], psr_grid.shape[-1]
+    if psr_grid.dim() == 5 and psr_grid.shape[1] == 1:
+        psr_grid = psr_grid.squeeze(1)
+    try:
+        verts_list, faces_list = marching_cubes(psr_grid, isolevel=zero_level, return_local_coords=False)
+    except Exception as e:
+        verts_list, faces_list = marching_cubes(psr_grid, return_local_coords=False)
+    if batch_size >1:
+        verts = torch.stack(verts_list,dim=0)
+        faces = torch.stack(faces_list,dim=0)
+    else:
+        verts = verts_list[0]
+        faces = faces_list[0]    
+    
+    if real_scale:
+        verts = verts / (s-1) # scale to range [0, 1]
+    else:
+        verts = verts / s # scale to range [0, 1)
+    
+    normals = compute_normals(psr_grid,verts)
+    if pytorchify:
+        return verts,faces,normals
+    else:
+        return verts.detach().cpu().numpy(),faces.detach().cpu().numpy(),normals.detach().cpu().numpy()
+    
+
+def mc_from_psr_cpu(psr_grid:torch.Tensor, pytorchify=False, real_scale=False, zero_level=0):
     '''
     Run marching cubes from PSR grid
     '''
