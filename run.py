@@ -65,7 +65,8 @@ sampler = PointCloudSampler(
     aux_channels=['R', 'G', 'B'],
     guidance_scale=guidance_scale,
     model_kwargs_key_filter=('embeddings', ''), # Do not condition the upsampler at all #TODO: change this into random sampled embeddings later
-    use_karras = (False,False)
+    use_karras = (False,False),
+    sampling_mode = general_config['pointe_config']['sampling_mode']
 )
 # endregion
 

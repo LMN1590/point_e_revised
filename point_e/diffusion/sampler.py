@@ -1,7 +1,7 @@
 import torch
 import torch.nn as nn
 
-from typing import Sequence, Dict, Any, Iterator, Callable,Tuple, List, Union, Optional
+from typing import Sequence, Dict, Any, Iterator, Callable,Tuple, List, Union, Optional,Literal
 
 from .k_diffusion.karras_sample import karras_sample_progressive
 from .gaussian_diffusion import GaussianDiffusion,SpacedDiffusion
@@ -37,8 +37,7 @@ class PointCloudSampler:
         sigma_min: Sequence[float] = (1e-3, 1e-3),
         sigma_max: Sequence[float] = (120, 160),
         s_churn: Sequence[float] = (3, 0),
-        
-        cond_fn:Sequence[Optional[Callable[...,torch.Tensor]]] = (None,None)
+        sampling_mode:Literal['ddpm','ddim'] = 'ddpm'
     ):
         n = len(models)
         assert n>0
@@ -64,6 +63,7 @@ class PointCloudSampler:
         self.sigma_min = sigma_min
         self.sigma_max = sigma_max
         self.s_churn = s_churn
+        self.sampling_mode = sampling_mode
 
         self.models = models
         self.diffusions = diffusions
@@ -164,7 +164,8 @@ class PointCloudSampler:
                 if stage_guidance_scale:
                     model = self._uncond_guide_model(model, stage_guidance_scale)
                     internal_batch_size *= 2
-                samples_it = diffusion.p_sample_loop_progressive(
+                sample_loop_progressive = diffusion.p_sample_loop_progressive if self.sampling_mode =='ddpm' else diffusion.ddim_sample_loop_progressive
+                samples_it = sample_loop_progressive(
                     model,
                     shape=(internal_batch_size, *sample_shape[1:]),
                     model_kwargs=stage_model_kwargs,
