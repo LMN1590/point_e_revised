@@ -1,10 +1,10 @@
-exp_name: alpha_check_hand_img_grad_scale1e-3_clamp1e-4_k3_thresh96_grippinglossnew_frame150_seed310_alpha_10_ddim256
+exp_name: easy_check_cone_img_grad_scale1e-3_clamp1e-4_k1_thresh96_grippinglossnew_frame150_seed310_alpha_20_ddim256
 seed: &seed 310
 out_dir: ./logs/
 tensorboard_log_dir: runs/
 save_every_iter: &log_freq 1
 total_steps: 512 # Check diffusion_cfg to see how many steps there are in diffusion (normal diffusion + upsampler)
-substep_count: 3 # remember to update in diffusion config in pointe, under the k keys
+substep_count: 1 # remember to update in diffusion config in pointe, under the k keys
 
 cond_config:
   - name: "SoftZoo_Sim"
@@ -22,7 +22,7 @@ cond_overall_logging: True
 preload_emb:
   condition_embedding: 
     shape: [1,3,224,224]
-    path: img_asset/hand.jpg
+    path: img_asset/cone.webp
     random: False
   diffusion_noise: 
     shape: [2,6,1024]
@@ -106,14 +106,14 @@ sap_config:
     density: 3.0
     voxel_size: 0.02
 
-  device: cuda:0
-  gradient_alpha: 10.0
+  device: cuda:1
+  gradient_alpha: 20.0
   save_every_iter: *log_freq
   save_every_sub_iter: 1
 
 pointe_config:
   base_model_name: base300M
-  device: cuda:0
+  device: cuda:1
   guidance_scale: [3.0, 0.0]
   num_points: [1024, 3072]
   sampling_mode: ddim

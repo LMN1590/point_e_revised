@@ -178,6 +178,12 @@ if __name__ == "__main__":
     import argparse
     parser = argparse.ArgumentParser()
     parser.add_argument("--config_path",type=str,help='Path to the config .yaml file')
+    parser.add_argument(
+        "--gpus", nargs = "+",
+        type=int,help='Which GPUs to use',
+        default=[0,1]
+    )
     
     args = parser.parse_args()
+    os.environ['CUDA_VISIBLE_DEVICES'] = ','.join([str(gpu) for gpu in args.gpus])
     main(args.config_path)

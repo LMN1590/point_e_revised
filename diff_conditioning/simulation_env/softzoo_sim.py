@@ -55,6 +55,14 @@ def normalize_to_unit_box(points: torch.Tensor):
 
     return normalized
 
+def rotate_x_90_torch(points):
+    R = torch.tensor([
+        [1, 0, 0],
+        [0, 0, -1],
+        [0, 1, 0]
+    ], dtype=points.dtype, device=points.device)
+    return points @ R.T
+
 class SoftzooSimulation(BaseCond):
     # region Initialization
     def __init__(
@@ -182,7 +190,7 @@ class SoftzooSimulation(BaseCond):
             pos = pred_xstart[:B//2,:3]
             for i,t_sample in zip(range(B//2),t.tolist()):
                 logging.info(f'{self.name}: Start sampling dense gripper with SAP for batch_idx {i}')
-                x_0 = pos[i].T.clone().detach() # (N,3), device cuda:1
+                x_0 = rotate_x_90_torch(pos[i].T.clone().detach()) # (N,3), device cuda:1
                 dense_gripper,sap_loss = self.sap.dense_sample(
                     x_0,
                     batch_idx = i,
@@ -291,10 +299,17 @@ class SoftzooSimulation(BaseCond):
         
         if self.config.optimize_designer and (sampling_step%self.config.render_every_iter==0):
             if 'particle_based_representation' in str(self.env.design_space):
-                for design_type in self.config.optimize_design_types:
+                for design_type in ['geometry','actuator','softness']:
                     design_fpath = os.path.join(self.design_dir, f'{design_type}_Batch_{batch_idx}_Sampling_{sampling_step:04d}_Local_{local_iter:04d}.pcd')
                     design_pcd = self.designer.save_pcd(design_fpath, design, design_type)
-                save_pcd_to_mesh(os.path.join(self.design_dir, f'mesh_Batch_{batch_idx}_Sampling_{sampling_step:04d}_Local_{local_iter:04d}.ply'), design_pcd)
+                save_pcd_to_mesh(
+                    os.path.join(self.design_dir, f'mesh_Batch_{batch_idx}_Sampling_{sampling_step:04d}_Local_{local_iter:04d}.ply'), 
+                    design_pcd
+                )
+                self.designer.save_actuator_direction(
+                    design,
+                    os.path.join(self.design_dir, f'actuator_direction_Batch_{batch_idx}_Sampling_{sampling_step:04d}_Local_{local_iter:04d}.npy'), 
+                )
             elif 'voxel_based_representation' in str(self.env.design_space):
                 for design_type in self.config.optimize_design_types:
                     design_fpath = os.path.join(self.design_dir, f'{design_type}_{sampling_step:04d}.ply')

@@ -174,6 +174,8 @@ class GeneratedPointEPCD(Base):
     @property
     def has_actuator_direction(self):
         return True
+    def save_actuator_direction(self,design:Dict[str,torch.Tensor],save_path:str):
+        np.save(save_path,design['actuator_direction'].detach().cpu().numpy())
     
     def reset(self):
         self.out_cache:Dict[str,Optional[torch.Tensor]] = dict(
