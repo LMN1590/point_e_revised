@@ -58,8 +58,8 @@ def normalize_to_unit_box(points: torch.Tensor):
 def rotate_x_90_torch(points):
     R = torch.tensor([
         [1, 0, 0],
-        [0, 0, -1],
-        [0, 1, 0]
+        [0, 0, 1],
+        [0, -1, 0]
     ], dtype=points.dtype, device=points.device)
     return points @ R.T
 

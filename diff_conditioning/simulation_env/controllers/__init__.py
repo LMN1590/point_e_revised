@@ -66,6 +66,7 @@ def make(args:BaseControllerConfig, env:BaseEnv, torch_device:str):
         from .all_on import AllOn
         controller_cls = AllOn
         controller_kwargs['env'] = env
+        controller_kwargs['active'] = args.active
     else:
         raise ValueError(f'Unrecognized controller type {args.controller_type}')
     controller = controller_cls(**controller_kwargs)

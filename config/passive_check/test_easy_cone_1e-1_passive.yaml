@@ -1,4 +1,4 @@
-exp_name: easy_check_cone_img_nograd #_scale1e-1_clamp1e-2_k3_thresh96_grippinglossnew_frame150_seed310_alpha_20_ddim256
+exp_name: easy_passive_check_coneimg_grad_scale1e-1_clamp1e-2_k1_thresh96_seed310_alpha_10_ddim256
 seed: &seed 310
 out_dir: ./logs/
 tensorboard_log_dir: runs/
@@ -7,11 +7,11 @@ total_steps: 512 # Check diffusion_cfg to see how many steps there are in diffus
 substep_count: 1 # remember to update in diffusion config in pointe, under the k keys
 
 cond_config:
-  # - name: "SoftZoo_Sim"
-  #   grad_scale: !!float 1e-1
-  #   grad_clamp: !!float 1e-2
-  #   calc_gradient: True
-  #   logging_bool: True
+  - name: "SoftZoo_Sim"
+    grad_scale: !!float 1e-1
+    grad_clamp: !!float 1e-2
+    calc_gradient: True
+    logging_bool: True
   # - name: "Dist_To_Origin"
   #   grad_scale: !!float 1e0
   #   grad_clamp: !!float 1e-2
@@ -40,6 +40,7 @@ softzoo_config:
   n_frames: 150
 
   controller_type: all_on
+  active: False
   action_v_strength: 0.3
 
   loss_types: [GrippingObjectLoss]
@@ -107,7 +108,7 @@ sap_config:
     voxel_size: 0.02
 
   device: cuda:1
-  gradient_alpha: 20.0
+  gradient_alpha: 10.0
   save_every_iter: *log_freq
   save_every_sub_iter: 1
 

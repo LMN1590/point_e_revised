@@ -299,6 +299,9 @@ class BaseControllerConfig:
     closed_loop_sinwave_obs_names: List[str] # field(default_factory#lambda: ['com', 'objective'])
     closed_loop_sinwave_hidden_filters: List[int] # field(default_factory#lambda: [32, 32])
     closed_loop_sinwave_activation: str # 'Tanh'
+    
+    # Controller [AllOn]
+    active:bool
 
 @dataclass
 class DesignConfig:

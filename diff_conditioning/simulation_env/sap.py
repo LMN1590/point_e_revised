@@ -159,7 +159,7 @@ class CustomSAP:
             v, f, _ = mc_from_psr(psr_grid,zero_level=trainer.cfg['data']['zero_level'], real_scale=True,pytorchify=True)
             v = v * 2 - 1
             if data['scale'] is not None:
-                v *= data['scale']
+                v *= data['scale']*(1/0.9)
             if data['center'] is not None:
                 v += data['center']
         
@@ -176,6 +176,34 @@ class CustomSAP:
             },
             "pcd":inside_points
         }
+    
+    def _postprocess_cpu(self,inputs:torch.Tensor,data:Dict,trainer:Trainer):
+        psr_grid, points, normals = trainer.pcl2psr(inputs)
+        with torch.no_grad():
+            v, f, _ = mc_from_psr(psr_grid,zero_level=trainer.cfg['data']['zero_level'], real_scale=True,pytorchify=True)
+            v = v * 2 - 1
+            if data['scale'] is not None:
+                v *= data['scale'] * (1/0.9)
+            if data['center'] is not None:
+                v += data['center']
+        mesh = o3d.geometry.TriangleMesh()
+        mesh.vertices = o3d.utility.Vector3dVector(v.cpu().numpy())
+        mesh.triangles = o3d.utility.Vector3iVector(f.cpu().numpy())
+                    
+        inside_points = sample_pc_in_mesh(
+            mesh, num_points=self.sap_config['sample']['num_points'],
+            density=self.sap_config['sample']['density'], 
+            voxel_size=self.sap_config['sample']['voxel_size']
+        )
+        
+        return {
+            "mesh":{
+                "vertices":v,
+                "faces":f
+            },
+            "pcd":inside_points
+        }
+
         
         
     

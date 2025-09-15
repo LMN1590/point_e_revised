@@ -1,4 +1,4 @@
-exp_name: easy_check_cone_img_grad_scale1e-1_clamp1e-2_k1_thresh96_grippinglossnew_frame150_seed310_alpha_20_ddim256
+exp_name: consistency_test_scale1e-1_clipping_1e-2_passive
 seed: &seed 310
 out_dir: ./logs/
 tensorboard_log_dir: runs/
@@ -26,10 +26,10 @@ preload_emb:
     random: False
   diffusion_noise: 
     shape: [2,6,1024]
-    path: null
+    path: embeddings/base_noise_cone.npy
   upsample_noise: 
     shape: [1,6,3072]
-    path: null
+    path: embeddings/upsample_noise_cone.npy
 
 softzoo_config:
   out_dir: null # Placeholder, need to be set in run.py
@@ -37,9 +37,10 @@ softzoo_config:
   save_every_iter: *log_freq
   render_every_iter: *log_freq
   n_iters: 301
-  n_frames: 150
+  n_frames: 100
 
   controller_type: all_on
+  active: False
   action_v_strength: 0.3
 
   loss_types: [GrippingObjectLoss]
@@ -107,7 +108,7 @@ sap_config:
     voxel_size: 0.02
 
   device: cuda:1
-  gradient_alpha: 20.0
+  gradient_alpha: 10.0
   save_every_iter: *log_freq
   save_every_sub_iter: 1
 
