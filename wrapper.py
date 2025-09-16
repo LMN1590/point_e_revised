@@ -1,6 +1,6 @@
 import os
 
-ROOT_DIR = 'config/'
+ROOT_DIR = 'config/cone_check'
 config_files = [
     os.path.join(ROOT_DIR,dir)
     for dir in os.listdir(ROOT_DIR)

@@ -101,9 +101,15 @@ class CustomSAP:
                 np.save(os.path.join(cur_training_dir,'error_inputs.npy'),inputs.detach().cpu().numpy())
                 return torch.empty(0),None
 
-        output_data = self._postprocess(
-            inputs,data,trainer
-        )
+        if self.sap_config['resample_mode']=='kaolin':
+            output_data = self._postprocess(
+                inputs,data,trainer
+            ) 
+        elif self.sap_config['resample_mode']=='o3d':
+            output_data = self._postprocess_cpu(
+                inputs,data,trainer
+            )
+        else: raise NotImplementedError(f"Unrecognized resampling mode {self.sap_config['resample_mode']}")
         
         if self.sap_config['train']['exp_mesh'] and sampling_step%self.sap_config['save_every_iter']==0:
             mesh = o3d.geometry.TriangleMesh()
@@ -201,7 +207,7 @@ class CustomSAP:
                 "vertices":v,
                 "faces":f
             },
-            "pcd":inside_points
+            "pcd":torch.from_numpy(inside_points).to(self.device).float()
         }
 
         

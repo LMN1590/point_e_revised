@@ -1,0 +1,122 @@
+exp_name: consistency_test_scale1e2_clipping_1e-2_passive_jitter_obj_o3dsampling_alpha20
+seed: &seed 310
+out_dir: ./logs/
+tensorboard_log_dir: runs/
+save_every_iter: &log_freq 1
+total_steps: 512 # Check diffusion_cfg to see how many steps there are in diffusion (normal diffusion + upsampler)
+substep_count: 1 # remember to update in diffusion config in pointe, under the k keys
+
+cond_config:
+  - name: "SoftZoo_Sim"
+    grad_scale: !!float 1e2
+    grad_clamp: !!float 1e-2
+    calc_gradient: True
+    logging_bool: True
+  # - name: "Dist_To_Origin"
+  #   grad_scale: !!float 1e0
+  #   grad_clamp: !!float 1e-2
+  #   calc_gradient: True
+  #   logging_bool: True
+cond_overall_logging: True
+
+preload_emb:
+  condition_embedding: 
+    shape: [1,3,224,224]
+    path: img_asset/cone.webp
+    random: False
+  diffusion_noise: 
+    shape: [2,6,1024]
+    path: embeddings/base_noise_cone.npy
+  upsample_noise: 
+    shape: [1,6,3072]
+    path: embeddings/upsample_noise_cone.npy
+
+softzoo_config:
+  out_dir: null # Placeholder, need to be set in run.py
+  env_config_file: gripping_env.yaml
+  save_every_iter: *log_freq
+  render_every_iter: *log_freq
+  n_iters: 301
+  n_frames: 100
+
+  controller_type: all_on
+  active: False
+  action_v_strength: 0.3
+
+  loss_types: [GrippingObjectLoss]
+  obj_particle_id: 2
+
+  seed: *seed  # Placeholder, do not use
+  torch_seed: *seed  # Placeholder, do not use
+  static_as_fixed: True
+  device_memory_fraction: 0.7
+
+  optimize_designer: True
+  optimize_design_types: ['geometry']
+  designer_lr: 0.1
+  gen_pointe_bounding_box:
+    max: [0.5,0.5,0.5]
+    # mean: [0.,0.,0.]
+    min: [-0.5,-0.5,-0.5]
+
+  design_device: cpu
+  obj_initial_pos: [0,0,0]
+
+sap_config:
+  data:
+    data_type: point
+    n_views_per_iter: 2
+    zero_level: 0
+
+  model:
+    sphere_radius: 0.2
+    num_points: 20000
+    grid_res: 128 # poisson grid resolution
+    psr_sigma: 2
+
+    apply_sigmoid: True
+    normal_normalize: False
+
+  train:
+    schedule:
+      initial: 1e-2
+      interval: 200
+      factor: 0.5
+      final: 1e-3
+    
+    total_epochs: 500
+
+    w_chamfer: 1.
+    w_chamfer_v_mesh: 1.
+    w_chamfer_x_0: 10.
+    w_inside: 0.1
+    w_outside: 1.
+
+    n_sup_point: 20000
+    n_grow_points: 2000
+    subsample_vertex: False
+    l_weight: {}
+
+    exp_mesh: True
+    exp_pcl: True
+
+    resample_every: 75
+
+  sample:
+    num_points: 10000
+    density: 3.0
+    voxel_size: 0.02
+
+  device: cuda:1
+  gradient_alpha: 20.0
+  save_every_iter: *log_freq
+  save_every_sub_iter: 1
+  resample_mode: 'o3d'
+
+pointe_config:
+  base_model_name: base300M
+  device: cuda:1
+  guidance_scale: [3.0, 0.0]
+  num_points: [1024, 3072]
+  sampling_mode: ddim
+  

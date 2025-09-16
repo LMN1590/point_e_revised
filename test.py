@@ -26,4 +26,4 @@ def visualize_pcd(pcd_path: str):
     )
 
 if __name__ == "__main__":
-    visualize_pcd("archive/2025_09_12_Hand_DDIM/easy_check_tray_img_grad_scale1e-1_clamp1e-2_k3_thresh96_grippinglossnew_frame150_seed310_alpha_20_ddim256/softzoo/design/geometry_Batch_0_Sampling_0075_Local_0000.pcd")
+    visualize_pcd("logs/consistency_test_scale1e0_clipping_1e-2_passive_jitter_obj_o3dsampling/softzoo/design/geometry_Batch_0_Sampling_0095_Local_0000.pcd")

@@ -33,7 +33,7 @@ ENVIRONMENT:
     - type: Primitive.Mesh
       file_path: './obj_placeholder/model.obj'
       scale: [0.6,0.6,0.6]
-      initial_position: [0.55, 0.0, 0.4]
+      initial_position: [0.575, 0.0, 0.425]
       initial_rotation: [0.7071, -0.7071, 0.0, 0.0]
       initial_velocity: [0., 0., 0.]
       sample_density: 16

@@ -58,3 +58,4 @@ class SAPConfig(TypedDict):
     gradient_alpha:float
     save_every_iter:int
     save_every_sub_iter: int
+    resample_mode:Literal['kaolin','o3d']
