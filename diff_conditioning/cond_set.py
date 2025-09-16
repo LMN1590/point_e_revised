@@ -51,7 +51,7 @@ class CondSet:
                 **model_kwargs
             )
         if self.cond_overall_logging:
-            TENSORBOARD_LOGGER.log_scalar("Overall/All_Batch_GradientNorm",accum_grad.view(-1).norm(2))
+            TENSORBOARD_LOGGER.log_scalar("Overall/All_Batch_GradientNorm",accum_grad.reshape(-1).norm(2))
             # tensorboard_logger.increment_step()
             
             CSVLOGGER.log({
@@ -60,6 +60,6 @@ class CondSet:
                 "sampling_step": t.tolist()[0],
                 "local_iter": local_iter,
                 
-                "grad_norm":accum_grad.view(-1).norm(2).item()
+                "grad_norm":accum_grad.reshape(-1).norm(2).item()
             })
         return accum_grad

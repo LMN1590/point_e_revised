@@ -58,7 +58,7 @@ class Trainer:
         loss, loss_each = self.compute_loss(inputs, data, model, it)
 
         loss.backward()
-        grad_norm = inputs.grad.view(-1).norm(2).item() if inputs.grad is not None else 0.0
+        grad_norm = inputs.grad.reshape(-1).norm(2).item() if inputs.grad is not None else 0.0
         self.optimizer.step()
         
         return loss.item(), loss_each, grad_norm

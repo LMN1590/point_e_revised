@@ -70,7 +70,7 @@ class BaseCond:
 
         if self.logging_bool:
             TENSORBOARD_LOGGER.log_scalar(f"{self.name}/All_Batch_Loss",cur_loss.mean())
-            TENSORBOARD_LOGGER.log_scalar(f"{self.name}/All_Batch_GradientNorm",scaled_gradient.view(-1).norm(2))
+            TENSORBOARD_LOGGER.log_scalar(f"{self.name}/All_Batch_GradientNorm",scaled_gradient.reshape(-1).norm(2))
             # TENSORBOARD_LOGGER.increment_step()
             
             CSVLOGGER.log({
@@ -80,7 +80,7 @@ class BaseCond:
                 "local_iter": local_iter,
                 
                 "loss": cur_loss.mean(),
-                "grad_norm":scaled_gradient.view(-1).norm(2).item()
+                "grad_norm":scaled_gradient.reshape(-1).norm(2).item()
             })    
         return scaled_gradient   # negative sign: push mean back toward origin
         

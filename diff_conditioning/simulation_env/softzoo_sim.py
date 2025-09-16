@@ -255,7 +255,7 @@ class SoftzooSimulation(BaseCond):
         if self.logging_bool:
             tensorboard_logger.log_scalar("Simulation_SoftZoo/All_Batch_SoftZoo_Loss",cur_loss.mean())
             tensorboard_logger.log_scalar("Simulation_SAP/All_Batch_Loss",sap_loss_lst.mean())
-            tensorboard_logger.log_scalar("Simulation_SoftZoo/All_Batch_GradientNorm",scaled_gradient.view(-1).norm(2))
+            tensorboard_logger.log_scalar("Simulation_SoftZoo/All_Batch_GradientNorm",scaled_gradient.reshape(-1).norm(2))
             
             CSVLOGGER.log({
                 "phase": "SoftZoo_Overall",
@@ -264,7 +264,7 @@ class SoftzooSimulation(BaseCond):
                 "local_iter": local_iter,
                 
                 "softzoo_mean_loss": cur_loss.mean(),
-                "softzoo_scaled_mean_grad_norm":scaled_gradient.view(-1).norm(2).item()
+                "softzoo_scaled_mean_grad_norm":scaled_gradient.reshape(-1).norm(2).item()
             })
   
         return scaled_gradient
