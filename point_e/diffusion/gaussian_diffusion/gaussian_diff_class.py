@@ -5,6 +5,7 @@ import torch.nn as nn
 from typing import Sequence, Optional, Literal, Callable, Dict, Tuple, Union, Any
 from tqdm import tqdm
 import logging
+from logger import TENSORBOARD_LOGGER
 
 from .const import DIFFUSION_LOSS_TYPE,DIFFUSION_MEAN_TYPE,DIFFUSION_VAR_TYPE
 from ..diff_utils import _extract_into_tensor,normal_kl,discretized_gaussian_log_likelihood,mean_flat,approx_standard_normal_cdf
@@ -373,6 +374,7 @@ class GaussianDiffusion:
                 )
                 noise = th.randn_like(x)
                 sample = out["mean"] + nonzero_mask * th.exp(0.5 * out["log_variance"]) * noise
+                TENSORBOARD_LOGGER.increment()
         else:
             noise = th.randn_like(x)
             sample = out["mean"] + nonzero_mask * th.exp(0.5 * out["log_variance"]) * noise
@@ -505,7 +507,7 @@ class GaussianDiffusion:
         )
         sample = x
         if cond_fn is not None and t[0]<=self.condition_threshold:
-            for local_iter in tqdm(range(self.k),desc = f"Current iter {t[0].item()}"):
+            for local_iter in tqdm(range(self.k),desc = f"Current iter {t[0].item()}",position=1,leave=False):
                 out = self.condition_score(
                     cond_fn, out, sample, t, 
                     local_iter = local_iter, model_kwargs=model_kwargs
@@ -519,14 +521,19 @@ class GaussianDiffusion:
                 )
                 # Equation 12.
                 noise = th.randn_like(x)
+                mean_pred_eps_modifier = th.sqrt(1 - alpha_bar_prev - sigma**2) * out['eps']
                 mean_pred = (
                     out["pred_xstart"] * th.sqrt(alpha_bar_prev)
-                    + th.sqrt(1 - alpha_bar_prev - sigma**2) * out['eps']
+                    + mean_pred_eps_modifier
                 )
                 nonzero_mask = (
                     (t != 0).float().view(-1, *([1] * (len(x.shape) - 1)))
                 )  # no noise when t == 0
                 sample = mean_pred + nonzero_mask * sigma * noise
+                TENSORBOARD_LOGGER.log_scalar("Overall/Predicted_Mean_xt_L2Norm",mean_pred.view(-1).norm(2))
+                TENSORBOARD_LOGGER.log_scalar("Overall/Eps_Modifier_xt_L2Norm",mean_pred_eps_modifier.view(-1).norm(2))
+                TENSORBOARD_LOGGER.log_scalar("Overall/Sample_xt-1_L2Norm",sample.view(-1).norm(2))
+                TENSORBOARD_LOGGER.increment()
         else:
             alpha_bar = _extract_into_tensor(self.alphas_cumprod, t, x.shape)
             alpha_bar_prev = _extract_into_tensor(self.alphas_cumprod_prev, t, x.shape)
