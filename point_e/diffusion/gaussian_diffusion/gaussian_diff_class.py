@@ -374,6 +374,8 @@ class GaussianDiffusion:
                 )
                 noise = th.randn_like(x)
                 sample = out["mean"] + nonzero_mask * th.exp(0.5 * out["log_variance"]) * noise
+                TENSORBOARD_LOGGER.log_scalar("Overall_DDPM/Predicted_Mean_xt_L2Norm",out["mean"].view(-1).norm(2))
+                TENSORBOARD_LOGGER.log_scalar("Overall_DDPM/Sample_xt-1_L2Norm",sample.view(-1).norm(2))
                 TENSORBOARD_LOGGER.increment()
         else:
             noise = th.randn_like(x)
@@ -530,9 +532,9 @@ class GaussianDiffusion:
                     (t != 0).float().view(-1, *([1] * (len(x.shape) - 1)))
                 )  # no noise when t == 0
                 sample = mean_pred + nonzero_mask * sigma * noise
-                TENSORBOARD_LOGGER.log_scalar("Overall/Predicted_Mean_xt_L2Norm",mean_pred.view(-1).norm(2))
-                TENSORBOARD_LOGGER.log_scalar("Overall/Eps_Modifier_xt_L2Norm",mean_pred_eps_modifier.view(-1).norm(2))
-                TENSORBOARD_LOGGER.log_scalar("Overall/Sample_xt-1_L2Norm",sample.view(-1).norm(2))
+                TENSORBOARD_LOGGER.log_scalar("Overall_DDIM/Eps_Modifier_xt_L2Norm",mean_pred_eps_modifier.view(-1).norm(2))
+                TENSORBOARD_LOGGER.log_scalar("Overall_DDIM/Predicted_Mean_xt_L2Norm",mean_pred.view(-1).norm(2))
+                TENSORBOARD_LOGGER.log_scalar("Overall_DDIM/Sample_xt-1_L2Norm",sample.view(-1).norm(2))
                 TENSORBOARD_LOGGER.increment()
         else:
             alpha_bar = _extract_into_tensor(self.alphas_cumprod, t, x.shape)
