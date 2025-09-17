@@ -7,7 +7,7 @@ DIFFUSION_CONFIGS:
     timesteps: 1024
     respacing: ddim256
     k: 1
-    condition_threshold: 96
+    condition_threshold: 1
   base40M-textvec: *base_diffusion_config
   base40M-uncond: *base_diffusion_config
   base40M: *base_diffusion_config
@@ -21,4 +21,4 @@ DIFFUSION_CONFIGS:
     timesteps: 1024
     respacing: ddim256
     k: 1
-    condition_threshold: 96
+    condition_threshold: 1

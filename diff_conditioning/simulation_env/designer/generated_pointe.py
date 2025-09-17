@@ -59,7 +59,7 @@ class GeneratedPointEPCD(Base):
         
         lowest_pt = find_mid_lowest_pt(gripper_pos_np,0.5)
     
-        calibrated_base_pts = calibrate_points(
+        calibrated_base_pts = calibrate_translate_pts(
             base_points, 
             mean = lowest_pt, 
             scale=np.array([
@@ -86,7 +86,8 @@ class GeneratedPointEPCD(Base):
         
         points = gripper_pos_np
         points_std = StandardScaler().fit_transform(points)
-        coarse_labels = self._generate_coarse_muscle(points_std,normalizing,pca_components_index,muscle_count,feature_selector)
+        coarse_labels = self._generate_coarse_muscle(points_std,normalizing,pca_components_index,muscle_count,feature_selector=feature_selector)
+        # visualize_point_cloud(torch.from_numpy(points_std),coarse_labels)
         
         max_label = coarse_labels.max()
         target_center_np = np.array(target_center)
@@ -98,7 +99,7 @@ class GeneratedPointEPCD(Base):
                 logging.warning(f"Coarse muscle clusters {c} skipped due to no members available.")
                 continue
             
-            additional_clusters += self._split_muscle_layers(cluster_points,target_center_np)
+            additional_clusters += self._split_muscle_layers(cluster_points,target_center_np,split_mode='fixed')
         additional_clusters = np.array(additional_clusters)  # (m,3)
         labels = pairwise_distances_argmin(points_std, additional_clusters) 
         max_label = labels.max()
@@ -114,7 +115,7 @@ class GeneratedPointEPCD(Base):
         feature_selector:Callable[[np.ndarray],np.ndarray] = lambda x:x
     ):  
         points_std = feature_selector(points_std)
-        
+        print(points_std.shape)
         if normalizing:
             n_components = min(3,points_std.shape[1])
             pca = PCA(n_components=n_components)
@@ -140,25 +141,31 @@ class GeneratedPointEPCD(Base):
         labels = kmeans.labels_
         return labels
     
-    def _split_muscle_layers(self, cluster_points:np.ndarray, target_center_np:np.ndarray):
+    def _split_muscle_layers(self, cluster_points:np.ndarray, target_center_np:np.ndarray,split_mode:Literal['pca','target_pt','fixed']='fixed'):
         # PCA on cluster points
         cluster_center = cluster_points.mean(axis=0)
-        # TODO: Fix problem here sometimes num samples < 3
-        if min(*cluster_points.shape,3)<3: logging.warning("Warning!!!: Numer of points in cluster is small <3.")
-        pca_local = PCA(n_components=min(*cluster_points.shape,3))
-        pca_local.fit(cluster_points)
+        if split_mode == 'pca':
+            # TODO: Fix problem here sometimes num samples < 3
+            if min(*cluster_points.shape,3)<3: logging.warning("Warning!!!: Numer of points in cluster is small <3.")
+            pca_local = PCA(n_components=min(*cluster_points.shape,3))
+            pca_local.fit(cluster_points)
 
-        # Use 3rd component as local "vertical" axis
-        current_vector_up = target_center_np - cluster_center
-        norm_current_vector_up = current_vector_up/np.linalg.norm(current_vector_up)
-        
-        dot_products = [np.dot(comp, norm_current_vector_up) for comp in pca_local.components_]
-        best_idx = np.argmax(np.abs(dot_products))
-        local_up = pca_local.components_[best_idx]
+            # Use 3rd component as local "vertical" axis
+            current_vector_up = target_center_np - cluster_center
+            norm_current_vector_up = current_vector_up/np.linalg.norm(current_vector_up)
+            
+            dot_products = [np.dot(comp, norm_current_vector_up) for comp in pca_local.components_]
+            best_idx = np.argmax(np.abs(dot_products))
+            local_up = pca_local.components_[best_idx]
 
-        # Flip if necessary to ensure it's pointing toward the grasp center
-        if dot_products[best_idx] < 0:
-            local_up = -local_up
+            # Flip if necessary to ensure it's pointing toward the grasp center
+            if dot_products[best_idx] < 0:
+                local_up = -local_up
+        elif split_mode =='target_pt':
+            diff_target_center = target_center_np - cluster_center
+            local_up = diff_target_center/np.linalg.norm(diff_target_center)
+        elif split_mode == 'fixed':
+            local_up = target_center_np/np.linalg.norm(target_center_np)
                         
         proj = cluster_points @ local_up
         proj_min, proj_max = proj.min(), proj.max()
@@ -212,8 +219,10 @@ class GeneratedPointEPCD(Base):
     def create_representation_from_tensor(self,gripper_pos_tensor:torch.Tensor):
         # region Preprocess and Attach Base
         gripper_pos_np = gripper_pos_tensor.detach().cpu().numpy() # [N,C]
-        gripper_labels = self.get_muscle_label(gripper_pos_np)
+        gripper_labels = self.get_muscle_label(gripper_pos_np,feature_selector=lambda x:x[:,[1]],target_center=[1.,0.,0.])
+        # visualize_point_cloud(gripper_pos_tensor,gripper_labels)
         base_pos_tensor, base_labels = self.calculate_base_location(gripper_pos_np)
+        # visualize_point_cloud(gripper_pos_tensor,gripper_labels)
         
         complete_pos_tensor = torch.concat([base_pos_tensor,gripper_pos_tensor],dim=0).float()
         complete_labels = np.concatenate([base_labels,gripper_labels],axis=0)
@@ -307,7 +316,7 @@ def find_mid_lowest_pt(points: np.ndarray,w: float = 0.2,eps: float = 1e-8):
     idx = np.argmin(score)
     return xyz[idx]
 
-def calibrate_points(points:np.ndarray,mean:np.ndarray,flipped_x:bool = False,flipped_y:bool = False,flipped_z:bool=False,scale:Union[float,np.ndarray]=1.0):
+def calibrate_translate_pts(points:np.ndarray,mean:np.ndarray,flipped_x:bool = False,flipped_y:bool = False,flipped_z:bool=False,scale:Union[float,np.ndarray]=1.0):
     points_mean = points.mean(0)
     norm_points = points - points_mean
     norm_points = norm_points * scale
@@ -342,3 +351,11 @@ def visualize_point_cloud(pcd_coords,labels):
 
     o3d.visualization.draw_geometries([pcd] + line_meshes)
 # endregion
+
+if __name__ == '__main__':
+    gripper_pos_np = gripper_pos_tensor.detach().cpu().numpy() # [N,C]
+    gripper_labels = self.get_muscle_label(gripper_pos_np)
+    base_pos_tensor, base_labels = self.calculate_base_location(gripper_pos_np)
+    
+    complete_pos_tensor = torch.concat([base_pos_tensor,gripper_pos_tensor],dim=0).float()
+    complete_labels = np.concatenate([base_labels,gripper_labels],axis=0)
