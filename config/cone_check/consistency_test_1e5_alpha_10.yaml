@@ -1,4 +1,4 @@
-exp_name: consistency_test_scale1e3_clipping_1e-2_passive_jitter_obj_o3dsampling_alpha10_add_logging
+exp_name: consistency_test_scale1e5_clipping_1e0_passive_jitter_obj_o3dsampling_alpha10_add_logging
 seed: &seed 310
 out_dir: ./logs/
 tensorboard_log_dir: runs/
@@ -8,8 +8,8 @@ substep_count: 1 # remember to update in diffusion config in pointe, under the k
 
 cond_config:
   - name: "SoftZoo_Sim"
-    grad_scale: !!float 1e3
-    grad_clamp: !!float 1e-2
+    grad_scale: !!float 1e5
+    grad_clamp: !!float 1e0
     calc_gradient: True
     logging_bool: True
   # - name: "Dist_To_Origin"
