@@ -29,18 +29,18 @@ ENVIRONMENT:
       friction: 0.5
       min_height: &ground_height 0.1
       max_height: *ground_height
-      dampen_coeff: 0.5 # Should be around 0.5-0.6, lower will cause sinking, higher will cause bounce.
+      dampen_coeff: 0.8 # Should be around 0.5-0.6, lower will cause sinking, higher will cause bounce.
     - type: Primitive.Mesh
       file_path: './obj_placeholder/model.obj'
-      scale: [0.6,0.6,0.6]
-      initial_position: [0.575, 0.0, 0.425]
-      initial_rotation: [0.7071, -0.7071, 0.0, 0.0]
+      scale: [0.4,0.4,0.4]
+      initial_position: [0.55, 0.0, 0.4]
+      initial_rotation: [1., 0., 0.0, 0.0] # w,x,y,z
       initial_velocity: [0., 0., 0.]
       sample_density: 16
       material: FakeRigid
       particle_id: 2
       semantic_id: 2
-      ground_height: 0.1
+      ground_height: 0.101
   # Environment-specific
   use_renderer: False
   actuation_strength: 0.3
@@ -54,7 +54,7 @@ ENVIRONMENT:
       type: Primitive.Box
       size: [0.08, 0.08, 0.08]
       sample_density: 64
-      initial_position: [0.55, 0.345, 0.4]
+      initial_position: [0.55, 0.185, 0.4]
       initial_velocity: [0., 0., 0.]
       material: DiffAquaMuscle
       particle_id: 3 # used as robot id
@@ -76,8 +76,8 @@ RENDERER:
   type: ggui
   GGUI:
     ambient_light: [0.5, 0.5, 0.5]
-    camera_lookat: [0.5, 0.2, 0.5] # horizontal look
-    camera_position: [0.5, 0.4, 0.0]
+    camera_lookat: [0.5, 0.1, 0.5] # horizontal look
+    camera_position: [0.5, 0.2, 0.1]
     particle_radius: 0.002
     particle_coloring_mode: actuation
     ground_surface_cmap: textures/ground.png

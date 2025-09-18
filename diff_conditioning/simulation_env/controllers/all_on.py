@@ -25,8 +25,12 @@ class AllOn(Base):
         
         act = torch.zeros((self.n_actuators,), requires_grad=False)
         if self.active:
-            act[::2] = 1.0
-            act[1::2] = -1.0
+            if s//16<90:
+                act[::2] = -1.0
+                act[1::2] = 1.0
+            else:   
+                act[::2] = 1.0
+                act[1::2] = -1.0
         act = act * self.actuation_strength
         return act.detach().clone()
 

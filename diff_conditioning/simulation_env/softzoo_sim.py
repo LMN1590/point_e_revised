@@ -193,7 +193,6 @@ class SoftzooSimulation(BaseCond):
             for i,t_sample in zip(range(B//2),t.tolist()):
                 logging.info(f'{self.name}: Start sampling dense gripper with SAP for batch_idx {i}')
                 x_0 = rotate_x_90_torch(pos[i].T.clone().detach()) # (N,3), device cuda:1
-                print(x_0.max(0).values, x_0.min(0).values)
                 
                 dense_gripper,sap_loss = self.sap.dense_sample(
                     x_0,

@@ -246,6 +246,7 @@ class GeneratedPointEPCD(Base):
         
         complete_pos = [base_pos_tensor]
         complete_lbls = [base_labels]
+        
         for i in range(num_fingers):
             finger_i = rotate_y(gripper_pos_tensor.clone(),angles[i])
             calibrated_finger_i = calibrate_translate_pts(finger_i,mean=fingers_pos[i])
@@ -254,9 +255,6 @@ class GeneratedPointEPCD(Base):
         # endregion
         
         complete_pos_tensor = torch.concat(complete_pos,dim=0).float()
-        # print(gripper_pos_tensor.max(0).values,gripper_pos_tensor.min(0).values)
-        # print(base_pos_tensor.max(0).values,base_pos_tensor.min(0).values)
-        # print(complete_pos_tensor.shape)
         complete_labels_np = np.concatenate(complete_lbls,axis=0)
     
         # visualize_point_cloud(complete_pos_tensor,complete_labels)

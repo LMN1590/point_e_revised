@@ -46,8 +46,8 @@ def visualize_pcd(pcd_path: str):
 
 if __name__ == "__main__":
     # visualize_pcd("diff_conditioning/simulation_env/asset/fixed_base_big.pcd")
-    visualize_pcd("logs/debug/pointe/ply/result_257_debug.ply")
-    pcd = o3d.io.read_point_cloud("logs/debug/pointe/ply/result_257_debug.ply")
+    visualize_pcd("logs/debug/softzoo/design/geometry_Batch_0_Sampling_0000_Local_0000.pcd")
+    pcd = o3d.io.read_point_cloud("logs/debug/softzoo/design/geometry_Batch_0_Sampling_0000_Local_0000.pcd")
     base_points=torch.from_numpy(np.array(pcd.points))
     print(base_points.max(0).values,base_points.min(0).values)
     calibrated_base_pts = calibrate_translate_pts(

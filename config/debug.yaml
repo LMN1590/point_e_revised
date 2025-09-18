@@ -33,17 +33,19 @@ preload_emb:
 
 softzoo_config:
   out_dir: null # Placeholder, need to be set in run.py
+  fixed_v: gripping_5_HTP.json
   env_config_file: lifting_env.yaml
   save_every_iter: *log_freq
   render_every_iter: *log_freq
   n_iters: 301
-  n_frames: 100
+  n_frames: 200
 
   controller_type: all_on
   active: True
-  action_v_strength: 0.3
+  action_v_strength: 0.35
 
-  loss_types: [GrippingObjectLoss]
+  loss_types: [ThrowingObjectLoss]
+  obj_x_mul: [0.,1.,0.]
   obj_particle_id: 2
 
   seed: *seed  # Placeholder, do not use
@@ -115,7 +117,7 @@ sap_config:
   resample_mode: 'o3d'
 
 pointe_config:
-  base_model_name: base300M
+  base_model_name: base40M
   device: cuda:1
   guidance_scale: [3.0, 0.0]
   num_points: [1024, 3072]
