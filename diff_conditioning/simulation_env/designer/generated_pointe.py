@@ -44,11 +44,22 @@ class GeneratedPointEPCD(Base):
         self.to(self.device)
         self.original_coords = self.original_coords.to(self.device)
         
+    def calculate_base_location_parallel_gripper(self):
+        base_pcd = o3d.io.read_point_cloud('diff_conditioning/simulation_env/asset/fixed_base_big.pcd')
+        base_points = torch.from_numpy(np.asarray(base_pcd.points)).to(self.device)
+        calibrated_base_pts = calibrate_translate_pts(
+            base_points, 
+            mean = torch.tensor([0.,0.,0.]).to(self.device), 
+            scale=torch.tensor([1.,1.,1.]).to(self.device)
+        )
+        base_labels = [0 for _ in range(base_points.shape[0])]
+        return calibrated_base_pts,np.array(base_labels)
+        
     def calculate_base_location(self,gripper_pos_np:np.ndarray):
         # Label 0 is reserved for the base, where no velocity is allowed to propagate to hold the gripper up.
         # The rest of the labels comes in pair (2n+1,2n+2) denotes the muscle pair n.
         
-        base_pcd = o3d.io.read_point_cloud('diff_conditioning/simulation_env/asset/fixed_base.pcd')
+        base_pcd = o3d.io.read_point_cloud('diff_conditioning/simulation_env/asset/fixed_base_big.pcd')
         base_points = np.asarray(base_pcd.points)
         
         base_coords_min, base_coords_max = base_points.min(0),base_points.max(0)
@@ -57,21 +68,21 @@ class GeneratedPointEPCD(Base):
         gripper_extent = gripper_points_max - gripper_points_min
         gripper_base_scale = gripper_extent/base_extent
         
-        lowest_pt = find_mid_lowest_pt(gripper_pos_np,0.5)
+        lowest_pt = torch.from_numpy(find_mid_lowest_pt(gripper_pos_np,0.5)).to(self.device)
     
         calibrated_base_pts = calibrate_translate_pts(
-            base_points, 
+            torch.from_numpy(base_points).to(self.device), 
             mean = lowest_pt, 
-            scale=np.array([
+            scale=torch.tensor([
                 0.1*gripper_base_scale[0],
                 0.02*gripper_base_scale[1],
                 0.1*gripper_base_scale[2]
-            ])
+            ]).to(self.device)
         )
     
         base_labels = [0]*base_points.shape[0]
         
-        return torch.from_numpy(calibrated_base_pts).to(self.device),np.array(base_labels)
+        return calibrated_base_pts,np.array(base_labels)
     
     # region Muscle Label Generation
     def get_muscle_label(
@@ -115,7 +126,6 @@ class GeneratedPointEPCD(Base):
         feature_selector:Callable[[np.ndarray],np.ndarray] = lambda x:x
     ):  
         points_std = feature_selector(points_std)
-        print(points_std.shape)
         if normalizing:
             n_components = min(3,points_std.shape[1])
             pca = PCA(n_components=n_components)
@@ -193,10 +203,10 @@ class GeneratedPointEPCD(Base):
             is_passive_fixed = None
         )
     
-    def forward(self,input:torch.Tensor):
+    def forward(self,input:torch.Tensor,num_fingers:int):
         inp = input.to(self.device)
         
-        self.create_representation_from_tensor(inp)
+        self.create_representation_from_tensor(inp,num_fingers)
         
         active_geometry = self.occupancy
         passive_geometry = self.occupancy * self.passive_geometry_mul # NOTE: the same as active
@@ -216,25 +226,51 @@ class GeneratedPointEPCD(Base):
         design = {k: v.clone() for k, v in self.out_cache.items()}
         return design
     
-    def create_representation_from_tensor(self,gripper_pos_tensor:torch.Tensor):
+    def create_representation_from_tensor(self,gripper_pos_tensor:torch.Tensor,num_fingers:int):
         # region Preprocess and Attach Base
         gripper_pos_np = gripper_pos_tensor.detach().cpu().numpy() # [N,C]
-        gripper_labels = self.get_muscle_label(gripper_pos_np,feature_selector=lambda x:x[:,[1]],target_center=[1.,0.,0.])
-        # visualize_point_cloud(gripper_pos_tensor,gripper_labels)
-        base_pos_tensor, base_labels = self.calculate_base_location(gripper_pos_np)
-        # visualize_point_cloud(gripper_pos_tensor,gripper_labels)
+        gripper_labels = self.get_muscle_label(gripper_pos_np,feature_selector=lambda x:x[:,[1]],target_center=[1.,0.,0.],muscle_count=4)
+        max_label = gripper_labels.max()
+        max_gripper_y = gripper_pos_tensor.max(0).values[1]
         
-        complete_pos_tensor = torch.concat([base_pos_tensor,gripper_pos_tensor],dim=0).float()
-        complete_labels = np.concatenate([base_labels,gripper_labels],axis=0)
+        base_pos_tensor, base_labels = self.calculate_base_location_parallel_gripper()
+        max_base_y = base_pos_tensor.max(0).values[1]
+        
+        # region Assigning Fingers to Base
+        angles = torch.arange(num_fingers, device=self.device) * (2 * torch.pi / num_fingers)
+        x_axis_pos = torch.cos(torch.pi + angles) * 0.5
+        z_axis_pos = torch.sin(torch.pi + angles) * 0.5
+        y_axis_pos = torch.zeros_like(x_axis_pos) + max_base_y - max_gripper_y
+        
+        fingers_pos = torch.stack([x_axis_pos, y_axis_pos, z_axis_pos], dim=1)  # [N,3]
+        
+        complete_pos = [base_pos_tensor]
+        complete_lbls = [base_labels]
+        for i in range(num_fingers):
+            finger_i = rotate_y(gripper_pos_tensor.clone(),angles[i])
+            calibrated_finger_i = calibrate_translate_pts(finger_i,mean=fingers_pos[i])
+            complete_pos.append(calibrated_finger_i)
+            complete_lbls.append(gripper_labels.copy() + max_label)
+        # endregion
+        
+        complete_pos_tensor = torch.concat(complete_pos,dim=0).float()
+        # print(gripper_pos_tensor.max(0).values,gripper_pos_tensor.min(0).values)
+        # print(base_pos_tensor.max(0).values,base_pos_tensor.min(0).values)
+        # print(complete_pos_tensor.shape)
+        complete_labels_np = np.concatenate(complete_lbls,axis=0)
     
         # visualize_point_cloud(complete_pos_tensor,complete_labels)
-        unique_lbls = np.unique(complete_labels)
+        unique_lbls = np.unique(complete_labels_np)
         if not self.env.sim.solver.n_actuators == unique_lbls.shape[0]:
             logging.warning(f"Warning!!!!: \n The number of actuators {self.env.sim.solver.n_actuators} must be equal to the number of generated labels {unique_lbls.shape[0]}. Probllem in configuration files")
         # endregion
         
         # region Calculate Actuator Direction
-        all_part_pca_components, all_part_pca_singular_values, all_part_pc = extract_part_pca_inner(complete_pos_tensor.detach().cpu().numpy(),complete_labels,unique_lbls=range(self.env.sim.solver.n_actuators))        
+        all_part_pca_components, all_part_pca_singular_values, all_part_pc = extract_part_pca_inner(
+            complete_pos_tensor.detach().cpu().numpy(),
+            complete_labels_np,
+            unique_lbls=range(self.env.sim.solver.n_actuators)
+        )        
         actuator_directions = [] # TODO: make dict
         for k, part_pca_component in all_part_pca_components.items():
             # Taking the first PCA component as the direction for actuators
@@ -276,7 +312,7 @@ class GeneratedPointEPCD(Base):
         
         coords_lbls_prob = torch.zeros((self.original_coords.shape[0],self.env.sim.solver.n_actuators))
         for lbl in unique_lbls:
-            coords_cur_lbls_prob = p_ji[:,complete_labels==lbl]
+            coords_cur_lbls_prob = p_ji[:,complete_labels_np==lbl]
             occupancy_cluster = (1 - torch.prod(1-coords_cur_lbls_prob,dim=1)) #*(1. if lbl!=passive_lbl else 1e4)
             coords_lbls_prob[:,lbl] = occupancy_cluster
         coords_cluster = coords_lbls_prob.argmax(dim=1)
@@ -316,16 +352,19 @@ def find_mid_lowest_pt(points: np.ndarray,w: float = 0.2,eps: float = 1e-8):
     idx = np.argmin(score)
     return xyz[idx]
 
-def calibrate_translate_pts(points:np.ndarray,mean:np.ndarray,flipped_x:bool = False,flipped_y:bool = False,flipped_z:bool=False,scale:Union[float,np.ndarray]=1.0):
+def calibrate_translate_pts(
+    points:torch.Tensor,mean:torch.Tensor,
+    flipped_x:bool = False,flipped_y:bool = False,flipped_z:bool=False,
+    scale:Union[float,torch.Tensor]=1.0
+)->torch.Tensor:
     points_mean = points.mean(0)
     norm_points = points - points_mean
     norm_points = norm_points * scale
-    if flipped_x: norm_points[:,0] = -norm_points[:,0]
-    if flipped_y: norm_points[:,1] = -norm_points[:,1]
-    if flipped_z: norm_points[:,2] = -norm_points[:,2]
+    if flipped_x: norm_points[:,0] = 0.-norm_points[:,0]
+    if flipped_y: norm_points[:,1] = 0.-norm_points[:,1]
+    if flipped_z: norm_points[:,2] = 0.-norm_points[:,2]
     points_calibrated = norm_points + mean
     return points_calibrated
-
 
 def visualize_point_cloud(pcd_coords,labels):
     pcd = o3d.geometry.PointCloud()
@@ -350,12 +389,22 @@ def visualize_point_cloud(pcd_coords,labels):
             line_meshes.append(line_mesh)
 
     o3d.visualization.draw_geometries([pcd] + line_meshes)
-# endregion
 
-if __name__ == '__main__':
-    gripper_pos_np = gripper_pos_tensor.detach().cpu().numpy() # [N,C]
-    gripper_labels = self.get_muscle_label(gripper_pos_np)
-    base_pos_tensor, base_labels = self.calculate_base_location(gripper_pos_np)
-    
-    complete_pos_tensor = torch.concat([base_pos_tensor,gripper_pos_tensor],dim=0).float()
-    complete_labels = np.concatenate([base_labels,gripper_labels],axis=0)
+def rotate_y(points, angle):
+    """
+    Rotate 3D points around the Y-axis (X-Z plane rotation).
+
+    Args:
+        points: [N,3] numpy array of points
+        angle: float, rotation angle in radians
+
+    Returns:
+        rotated: [N,3] numpy array of rotated points
+    """
+    rot_mat = torch.tensor([
+        [torch.cos(angle), 0, torch.sin(angle)],
+        [0, 1, 0],
+        [-torch.sin(angle), 0, torch.cos(angle)]
+    ])
+    return points @ rot_mat.T  # [N,3] x [3,3]
+# endregion

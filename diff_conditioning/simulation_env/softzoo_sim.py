@@ -76,7 +76,8 @@ class SoftzooSimulation(BaseCond):
         super(SoftzooSimulation, self).__init__(name,grad_scale,calc_gradient,grad_clamp,logging_bool)
         self.sap = CustomSAP(
             sap_config,
-            device = torch.device(sap_config['device'])
+            device = torch.device(sap_config['device']),
+            num_fingers=config.num_fingers
         )
         self.config = config
         self.torch_device = config.design_device
@@ -182,15 +183,18 @@ class SoftzooSimulation(BaseCond):
                 t = model_kwargs['original_ts']
             
             logging.info(f'{self.name}: Start calculate x_0 from x_t')
-            pred_xstart = diffusion._predict_xstart_from_eps(
+            unscale_pred_xstart = diffusion._predict_xstart_from_eps(
                 x,t,
                 p_mean_var['eps']
             )
+            pred_xstart = diffusion.unscale_channels(unscale_pred_xstart)
             
             pos = pred_xstart[:B//2,:3]
             for i,t_sample in zip(range(B//2),t.tolist()):
                 logging.info(f'{self.name}: Start sampling dense gripper with SAP for batch_idx {i}')
                 x_0 = rotate_x_90_torch(pos[i].T.clone().detach()) # (N,3), device cuda:1
+                print(x_0.max(0).values, x_0.min(0).values)
+                
                 dense_gripper,sap_loss = self.sap.dense_sample(
                     x_0,
                     batch_idx = i,
@@ -281,7 +285,7 @@ class SoftzooSimulation(BaseCond):
         local_iter:int
     ):
         self.designer.reset()
-        designer_out = self.designer(gripper_pos_tensor)
+        designer_out = self.designer(gripper_pos_tensor,num_fingers=self.config.num_fingers)
         design = dict()
         for design_type in self.config.set_design_types:
             if design_type == 'actuator_direction': assert getattr(self.designer,'has_actuator_direction',False)

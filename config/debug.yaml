@@ -61,6 +61,7 @@ softzoo_config:
 
   design_device: cpu
   obj_initial_pos: [0,0,0]
+  num_fingers: 2
 
 sap_config:
   data:

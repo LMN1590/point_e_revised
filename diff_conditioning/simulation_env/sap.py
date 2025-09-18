@@ -19,9 +19,10 @@ from logger import CSVLOGGER
 import logging
 
 class CustomSAP:
-    def __init__(self,config:SAPConfig,device:torch.device):
+    def __init__(self,config:SAPConfig,device:torch.device,num_fingers:int):
         self.sap_config = config
         self.device = device
+        self.num_fingers = num_fingers
         self.initial_input = self._prepare_input()
     
     def dense_sample(self,x_0:torch.Tensor,batch_idx:int,sampling_step:int, local_iter:int):
@@ -171,7 +172,7 @@ class CustomSAP:
         
         inside_points = sample_pc_in_mesh_gpu_optim(
             v,f,
-            num_points=self.sap_config['sample']['num_points'],
+            num_points=self.sap_config['sample']['num_points']//self.num_fingers,
             density=self.sap_config['sample']['density'], 
             voxel_size=self.sap_config['sample']['voxel_size']
         )
@@ -197,7 +198,7 @@ class CustomSAP:
         mesh.triangles = o3d.utility.Vector3iVector(f.cpu().numpy())
                     
         inside_points = sample_pc_in_mesh(
-            mesh, num_points=self.sap_config['sample']['num_points'],
+            mesh, num_points=self.sap_config['sample']['num_points']//self.num_fingers,
             density=self.sap_config['sample']['density'], 
             voxel_size=self.sap_config['sample']['voxel_size']
         )

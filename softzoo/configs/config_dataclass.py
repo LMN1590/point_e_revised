@@ -434,4 +434,5 @@ class FullConfig(BaseControllerConfig,DesignConfig):
     device_memory_fraction:float
     design_device: str
     fixed_v:str
+    num_fingers:int
 # endregion
