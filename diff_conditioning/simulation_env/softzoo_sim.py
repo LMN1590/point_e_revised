@@ -9,7 +9,7 @@ import os
 import shutil
 import json
 from typing import Dict, List, Tuple,Union
-from tqdm import tqdm
+from tqdm import tqdm,trange
 
 from softzoo.configs.config_dataclass import FullConfig
 from softzoo.envs import ENV_CONFIGS_DIR
@@ -325,7 +325,9 @@ class SoftzooSimulation(BaseCond):
         fixed_v = [0.,0.,0.]
         cur_v_idx = 0
         
-        for frame in tqdm(range(self.config.n_frames),position=2,leave=False):
+        pbar = trange(0,self.config.n_frames,desc="Simulating",unit=' frames',position=2,leave=False)
+        
+        for frame in pbar:
             if frame >= velocities_by_frame[cur_v_idx][0]:
                 fixed_v = velocities_by_frame[cur_v_idx][1]
                 cur_v_idx +=1
@@ -346,6 +348,9 @@ class SoftzooSimulation(BaseCond):
                 obs, reward, done, info = self.env.step(None,fixed_v)
             else:
                 obs, reward, done, info = self.env.step(act,fixed_v)
+            pbar.set_postfix({
+                "reward": reward
+            })
             ep_reward += reward
 
             if self.env.has_renderer and (sampling_step % self.config.render_every_iter == 0):
