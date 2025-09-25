@@ -22,14 +22,14 @@ cond_overall_logging: True
 preload_emb:
   condition_embedding: 
     shape: [1,3,224,224]
-    path: img_asset/ver_rec.png
+    path: asset/img_asset/ver_rec.png
     random: False
   diffusion_noise: 
     shape: [2,6,1024]
-    path: embeddings/base_noise_cone.npy
+    path: asset/embeddings/base_noise_cone.npy
   upsample_noise: 
     shape: [1,6,3072]
-    path: embeddings/upsample_noise_cone.npy
+    path: asset/embeddings/upsample_noise_cone.npy
 
 softzoo_config:
   out_dir: null # Placeholder, need to be set in run.py

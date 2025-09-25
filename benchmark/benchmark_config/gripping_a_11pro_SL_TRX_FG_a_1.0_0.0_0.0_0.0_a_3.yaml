@@ -1,0 +1,132 @@
+ENVIRONMENT:
+  CUSTOM:
+    has_matter_on_ground: false
+    matter_id: 4
+    matter_materials: []
+    matter_padding:
+    - 32
+    - 3
+    - 32
+    matter_sample_density: 8
+    matter_semantic_id: 4
+    matter_thickness: 0.02
+    matter_youngs_modulus: 100000.0
+    randomize_terrain: false
+  ITEMS:
+  - semantic_id: 0
+    type: Static.BoundingBox
+  - dampen_coeff: 0.8
+    friction: 0.5
+    max_height: 0.1
+    min_height: 0.1
+    semantic_id: 0
+    surface: Surface.Slip
+    type: Static.Terrain
+  - file_path: /media/aioz-nghiale/data1/Data/mujoco_scanned_objects/models/11pro_SL_TRX_FG/model.obj
+    ground_height: 0.101
+    initial_position:
+    - 0.55
+    - 0.0
+    - 0.4
+    initial_rotation:
+    - 1.0
+    - 0.0
+    - 0.0
+    - 0.0
+    initial_velocity:
+    - 0.0
+    - 0.0
+    - 0.0
+    material: FakeRigid
+    particle_id: 2
+    sample_density: 16
+    scale:
+    - 0.3
+    - 0.3
+    - 0.3
+    semantic_id: 2
+    type: Primitive.Mesh
+  actuation_strength: 0.3
+  design_space: pbr
+  design_space_config:
+    base_shape:
+      initial_position:
+      - 0.55
+      - 0.185
+      - 0.4
+      initial_velocity:
+      - 0.0
+      - 0.0
+      - 0.0
+      material: DiffAquaMuscle
+      particle_id: 3
+      particle_info:
+        E_0: 10000.0
+        p_rho_0: 1000.0
+      sample_density: 64
+      semantic_id: 3
+      size:
+      - 0.08
+      - 0.08
+      - 0.08
+      type: Primitive.Box
+    initial_principle_direction:
+    - 1.0
+    - 0.0
+    - 0.0
+    n_actuators: 13
+    p_rho_lower_bound_mul: 0.1
+  objective: move_forward
+  objective_config:
+    forward_direction:
+    - 1.0
+    - 0.0
+    - 0.0
+    max_episode_steps: 400
+    reward_mode: per_step_velocity
+  observation_space:
+  - time
+  - com
+  use_renderer: false
+RENDERER:
+  GGUI:
+    ambient_light:
+    - 0.5
+    - 0.5
+    - 0.5
+    camera_lookat:
+    - 0.5
+    - 0.1
+    - 0.5
+    camera_position:
+    - 0.5
+    - 0.2
+    - 0.1
+    ground_surface_cmap: textures/ground.png
+    particle_coloring_mode: actuation
+    particle_radius: 0.002
+    res:
+    - 1920
+    - 1080
+  type: ggui
+SIMULATOR:
+  base_active_materials: []
+  checkpoint_cache_device: torch_cpu
+  default_dt: 0.0005
+  dim: 3
+  gravity:
+  - 0.0
+  - -3.8
+  - 0.0
+  max_actuation: 13
+  max_num_particles: 100000
+  max_substeps: 7000
+  max_substeps_local: 20
+  needs_grad: true
+  padding:
+  - 28
+  - 3
+  - 28
+  quality: 1.0
+  use_checkpointing: true
+  use_dynamic_field: false

@@ -67,7 +67,7 @@ class Mesh(PrimitiveBase):
             triangles += np.tile(offset, 3)
             
             # Step 3.5: Perform Rotation
-            rot_matrix = Quaternion(*self.initial_rotation).rotation_matrix
+            rot_matrix = Quaternion(*self.initial_rotation).rotation_matrix # uses w,x,y,z
             triangles  = apply_rotation_to_triangles(triangles,rot_matrix,target_center)
 
             # Step 4

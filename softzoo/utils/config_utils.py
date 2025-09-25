@@ -9,7 +9,7 @@ def merge_cfg(base_cfg: CN, cfg: Union[CN, str], replace: Optional[bool] = False
     cfg_out = base_cfg.clone()
 
     if isinstance(cfg, str):
-        assert os.path.exists(cfg)
+        assert os.path.exists(cfg), f'{cfg} does not exist'
         cfg_out.merge_from_file(cfg)
     else:
         cfg_out.merge_from_other_cfg(cfg)

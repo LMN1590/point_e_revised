@@ -1,9 +1,8 @@
-from diff_conditioning.simulation_env import SoftzooSimulation
-
 import torch
 import numpy as np
 import random
 
+import copy
 import yaml
 import os
 from typing import Dict
@@ -12,6 +11,7 @@ from tqdm import tqdm
 from config.config_dataclass import GeneralConfig
 
 config_path = "config/debug.yaml"
+env_config_dir = 'benchmark/benchmark_config'
 
 with open(config_path) as f:
     general_config:GeneralConfig = yaml.safe_load(f)
@@ -38,17 +38,24 @@ full_softzoo_config = SoftzooSimulation.load_config(
     cfg_item = softzoo_config
 )
 full_softzoo_config.out_dir = LOG_PATH_DICT['softzoo_log_dir']
-general_config['sap_config']['train']['dir_mesh'] = LOG_PATH_DICT['sap_mesh_dir']
-general_config['sap_config']['train']['dir_pcl'] = LOG_PATH_DICT['sap_pcl_dir']
-general_config['sap_config']['train']['dir_train'] = LOG_PATH_DICT['sap_training_dir']
+for env_config in os.listdir(env_config_dir):
+    for num_fingers in range(2,4):
+        mod_softzoo_config = copy.deepcopy(full_softzoo_config)
+        mod_softzoo_config.num_fingers = num_fingers
+        mod_softzoo_config.env_config_file = env_config
+        mod_softzoo_config.out_dir = os.path.join('./logs',env_config)
+        
+        general_config['sap_config']['train']['dir_mesh'] = LOG_PATH_DICT['sap_mesh_dir']
+        general_config['sap_config']['train']['dir_pcl'] = LOG_PATH_DICT['sap_pcl_dir']
+        general_config['sap_config']['train']['dir_train'] = LOG_PATH_DICT['sap_training_dir']
 
-sim = SoftzooSimulation.init_cond(
-    config = general_config['cond_config'][0],
-    softzoo_config = full_softzoo_config,
-    sap_config=general_config['sap_config']
-)
-ep_reward = sim.forward_sim(
-    dense_gripper,
-    -1,-1,-1
-)
-all_loss,grad,grad_name_control = sim.backward_sim()
+        sim = SoftzooSimulation.init_cond(
+            config = general_config['cond_config'][0],
+            softzoo_config = mod_softzoo_config,
+            sap_config=general_config['sap_config']
+        )
+        ep_reward = sim.forward_sim(
+            dense_gripper,
+            -1,-1,-1
+        )
+        all_loss,grad,grad_name_control = sim.backward_sim()
