@@ -26,4 +26,4 @@ def visualize_pcd(pcd_path: str):
     )
 
 if __name__ == "__main__":
-    visualize_pcd("logs/consistency_test_scale1e0_clipping_1e-2_passive_jitter_obj_o3dsampling/softzoo/design/geometry_Batch_0_Sampling_0095_Local_0000.pcd")
+    visualize_pcd("archive/2025_09_17_consistency_check_failed/logs/consistency_test_scale1e5_clipping_1e0_passive_jitter_obj_o3dsampling_alpha10_add_logging/softzoo/design/geometry_Batch_0_Sampling_0094_Local_0000.pcd")
