@@ -8,4 +8,5 @@ runs/
 out/
 runs_temp/
 archive/
+benchmark_config/
 # img_asset/

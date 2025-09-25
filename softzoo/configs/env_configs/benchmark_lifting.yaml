@@ -16,6 +16,7 @@ SIMULATOR:
 ENVIRONMENT:
   objective: throw_object
   objective_config:
+    reward_mode: final
     forward_direction: [0., 1., 0.]
     max_episode_steps: 400
     obj_particles_id: 2

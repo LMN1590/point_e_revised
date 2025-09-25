@@ -10,10 +10,13 @@ from softzoo.utils.const import F_DTYPE,I_DTYPE,NORM_EPS
 if TYPE_CHECKING:
     from ..base_env import BaseEnv
 
-
+@ti.data_oriented
 class ThrowObject(Base):
     def __init__(self, env:'BaseEnv', config:ThrowObjectConfig):
         super().__init__(env, config)
+        self.config['reward_mode'] = self.config.get('reward_mode', 'per_step')
+        assert self.config['reward_mode'] in ['per_step', 'final']
+        
         self.config['forward_direction'] = self.config.get('forward_direction', [1., 0., 0.])
         
         self.max_episode_steps = self.config.get('max_episode_steps', self.env.max_steps)
@@ -41,19 +44,30 @@ class ThrowObject(Base):
 
     def get_reward(self, s):
         self.step_cnt += 1
-        if self.step_cnt >= self.max_episode_steps:
+        if self.config['reward_mode'] == 'per_step':
             cur_obj_avg = ti.Vector.field(
                 3,
                 F_DTYPE,
                 shape=()
             )
             s_local = self.env.sim.solver.get_cyclic_s(s)
-            self._compute_x_avg(s_local,cur_obj_avg[None])
-            forward_dir = torch.tensor(self.config['forward_direction'])
-            rew = ((cur_obj_avg[None] - self.data['object_initial_com'][None]) * forward_dir).sum().item()
-        else:
-            rew = 0.
-        return rew
+            self._compute_x_avg(s_local,cur_obj_avg)
+            forward_dir = ti.Vector(self.config['forward_direction'])
+            rew = ((cur_obj_avg[None] - self.data['object_initial_com'][None]) * forward_dir).sum()
+        elif self.config['reward_mode'] ==  'final':
+            if self.step_cnt >= self.max_episode_steps:
+                cur_obj_avg = ti.Vector.field(
+                    3,
+                    F_DTYPE,
+                    shape=()
+                )
+                s_local = self.env.sim.solver.get_cyclic_s(s)
+                self._compute_x_avg(s_local,cur_obj_avg)
+                forward_dir = ti.Vector(self.config['forward_direction'])
+                rew = ((cur_obj_avg[None] - self.data['object_initial_com'][None]) * forward_dir).sum()
+            else:
+                rew = 0.
+        return float(rew)
 
     def get_done(self):
         return not (self.step_cnt < self.max_episode_steps)
@@ -65,7 +79,7 @@ class ThrowObject(Base):
     # region Taichi Compute 
     def _misc_compute(self):
         self._compute_n_object_particles()
-        self._compute_x_avg(0,self.data['object_initial_com'][None])
+        self._compute_x_avg(0,self.data['object_initial_com'])
     
     @ti.func
     def _is_object(self, id):
@@ -79,11 +93,11 @@ class ThrowObject(Base):
                 self.data['n_object_particles'][None] += ti.cast(1, F_DTYPE)
     
     @ti.kernel
-    def _compute_x_avg(self,s_local,ext_arr):
+    def _compute_x_avg(self,s_local:I_DTYPE,ext_arr:ti.template()):
         # Require self.data['x_avg']
         for p in range(self.env.sim.solver.n_particles[None]):
             id = self.env.sim.solver.particle_ids[p]
             is_obj = self._is_object(id) and (self.env.sim.solver.p_rho[p] > 0)
             if is_obj:
-                ext_arr += self.env.sim.solver.x[s_local,p] / self.data['n_object_particles'][None]
+                ext_arr[None] += self.env.sim.solver.x[s_local,p] / self.data['n_object_particles'][None]
     # endregion

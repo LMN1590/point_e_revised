@@ -30,18 +30,18 @@ def generate_quaternion_grid(resolution=2):
     return quaternions
 
 if __name__ == "__main__":
+    base_config_path = 'softzoo/configs/env_configs/benchmark_lifting.yaml'
     benchmark_config_path = 'benchmark/benchmark_config'
     os.makedirs(benchmark_config_path,exist_ok=True)
     quats = generate_quaternion_grid(4)
-    with open('softzoo/configs/env_configs/lifting_env.yaml') as f:
+    with open(base_config_path) as f:
         env_config = yaml.safe_load(f)
 
     base_dir = '/media/aioz-nghiale/data1/Data/mujoco_scanned_objects/models'
-    count = 0
     for obj in os.listdir(base_dir)[:2]:
         obj_path = os.path.join(base_dir,obj,'model.obj')
         for quat in quats:
-            for scale in range(3,4,1):
+            for scale in range(3,8,1):
                 real_scale = scale/10
                 
                 base_config = copy.deepcopy(env_config)
@@ -53,6 +53,4 @@ if __name__ == "__main__":
                 config_name = f'gripping_a_{obj}_a_{"_".join([str(item)for item in quat])}_a_{scale}.yaml'
                 with open(os.path.join(benchmark_config_path,config_name),'w') as f:
                     yaml.safe_dump(base_config,f)
-                count +=1
-                if count == 4: raise NotImplementedError()
     # print(count)

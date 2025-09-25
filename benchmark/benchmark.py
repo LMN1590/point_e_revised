@@ -7,6 +7,7 @@ import yaml
 import os
 from typing import Dict
 from tqdm import tqdm
+import json
 
 from config.config_dataclass import GeneralConfig
 
@@ -36,7 +37,7 @@ def main(num_fingers:int, env_config_file:str):
     mod_softzoo_config = copy.deepcopy(softzoo_config)
     mod_softzoo_config['num_fingers'] = num_fingers
     mod_softzoo_config['env_config_file'] = env_config_file
-    mod_softzoo_config['out_dir'] = os.path.join('./logs',env_config_file[:-5] + f'_num_finger_{num_fingers}')
+    mod_softzoo_config['out_dir'] = os.path.join('./logs',f'num_finger_{num_fingers}',env_config_file[:-5])
     os.makedirs(mod_softzoo_config['out_dir'],exist_ok=True)
     with open(os.path.join(mod_softzoo_config['out_dir'],'softzoo_config.yaml'),'w') as f:
         yaml.safe_dump(mod_softzoo_config,f)
@@ -54,15 +55,14 @@ def main(num_fingers:int, env_config_file:str):
         softzoo_config = full_softzoo_config,
         sap_config=general_config['sap_config']
     )
-    ep_reward = sim.forward_sim(
+    ep_reward,reward_log = sim.forward_sim(
         dense_gripper,
         -1,-1,-1
     )
-    all_loss,grad,grad_name_control = sim.backward_sim()
-    print(ep_reward)
-    print(all_loss)
-    print(grad)
-    print(grad_name_control)
+    with open(os.path.join(mod_softzoo_config['out_dir'],'reward.json'),'w') as f:
+        json.dump({
+            "reward":ep_reward
+        },f)
         
 
 

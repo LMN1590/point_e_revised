@@ -207,7 +207,7 @@ class SoftzooSimulation(BaseCond):
                 dense_gripper.requires_grad = True
                 
                 logging.info(f'{self.name}: Start forwarding simulation for batch_idx {i}')
-                ep_reward = self.forward_sim(
+                ep_reward,reward_log = self.forward_sim(
                     dense_gripper,
                     batch_idx = i, 
                     sampling_step=t_sample,
@@ -326,7 +326,7 @@ class SoftzooSimulation(BaseCond):
         cur_v_idx = 0
         
         pbar = trange(0,self.config.n_frames,desc="Simulating",unit=' frames',position=2,leave=False)
-        
+        reward_log = []
         for frame in pbar:
             if frame >= velocities_by_frame[cur_v_idx][0]:
                 fixed_v = velocities_by_frame[cur_v_idx][1]
@@ -351,6 +351,7 @@ class SoftzooSimulation(BaseCond):
             pbar.set_postfix({
                 "reward": reward
             })
+            reward_log.append(reward)
             ep_reward += reward
 
             if self.env.has_renderer and (sampling_step % self.config.render_every_iter == 0):
@@ -361,7 +362,7 @@ class SoftzooSimulation(BaseCond):
                 self.env.render()
 
             if done: break
-        return ep_reward
+        return ep_reward,reward_log
     def backward_sim(self):
         grad_names:Dict[int,List] = dict()
         if self.config.action_space == 'particle_v':
