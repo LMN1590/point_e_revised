@@ -150,7 +150,6 @@ def quick_tensorboard_setup(experiment_name:str,log_dir:str,increment_step:float
     return writer
 
 def init_all_logger(out_dir:str, exp_name:str, tensorboard_log_dir:str,increment_step:float):
-    print('testin123')
     """Initialize TensorBoard logger"""
     global TENSORBOARD_LOGGER,CSVLOGGER
     TENSORBOARD_LOGGER = quick_tensorboard_setup(exp_name,log_dir=tensorboard_log_dir,increment_step=increment_step)

@@ -19,7 +19,7 @@ np.random.seed(general_config['seed'])
 torch.manual_seed(general_config['seed'])
 
 finger_device = torch.device(general_config['sap_config']['device'])
-dense_gripper = torch.from_numpy(np.load('finger_0.npy')).to(finger_device) 
+dense_gripper = torch.from_numpy(np.load('asset/finger_0.npy')).to(finger_device) 
 
 from utils import init_log_dir
 LOG_PATH_DICT = init_log_dir(
@@ -33,14 +33,17 @@ def main(num_fingers:int, env_config_file:str):
     from diff_conditioning import CondSet,SoftzooSimulation
 
     softzoo_config:Dict = general_config['softzoo_config']
+    mod_softzoo_config = copy.deepcopy(softzoo_config)
+    mod_softzoo_config['num_fingers'] = num_fingers
+    mod_softzoo_config['env_config_file'] = env_config_file
+    mod_softzoo_config['out_dir'] = os.path.join('./logs',env_config_file[:-5] + f'_num_finger_{num_fingers}')
+    os.makedirs(mod_softzoo_config['out_dir'],exist_ok=True)
+    with open(os.path.join(mod_softzoo_config['out_dir'],'softzoo_config.yaml'),'w') as f:
+        yaml.safe_dump(mod_softzoo_config,f)
     full_softzoo_config = SoftzooSimulation.load_config(
-        cfg_item = softzoo_config
+        cfg_item = mod_softzoo_config
     )
-    full_softzoo_config.out_dir = LOG_PATH_DICT['softzoo_log_dir']
-    mod_softzoo_config = copy.deepcopy(full_softzoo_config)
-    mod_softzoo_config.num_fingers = num_fingers
-    mod_softzoo_config.env_config_file = env_config_file
-    mod_softzoo_config.out_dir = os.path.join('./logs',env_config_file)
+    
     
     general_config['sap_config']['train']['dir_mesh'] = LOG_PATH_DICT['sap_mesh_dir']
     general_config['sap_config']['train']['dir_pcl'] = LOG_PATH_DICT['sap_pcl_dir']
@@ -48,7 +51,7 @@ def main(num_fingers:int, env_config_file:str):
 
     sim = SoftzooSimulation.init_cond(
         config = general_config['cond_config'][0],
-        softzoo_config = mod_softzoo_config,
+        softzoo_config = full_softzoo_config,
         sap_config=general_config['sap_config']
     )
     ep_reward = sim.forward_sim(
