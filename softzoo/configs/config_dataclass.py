@@ -136,6 +136,12 @@ class ObjectiveTrajectoryConfig(TypedDict):
     sigma_norm: float
     sigma_direction: float
     reward_mode: Literal['velocity_separate_exp','velocity_rmse','velocity_separate_linear','waypoint_sqsum','velocity_separate']
+
+class ThrowObjectConfig(TypedDict):
+    reward_mode: Literal['final_step_position', 'per_step_velocity']
+    forward_direction: List[float]
+    max_episode_steps: int
+    obj_particles_id:int
 # endregion
 
 @dataclass
@@ -167,7 +173,7 @@ class EnvConfig:
     ITEMS:List[Union[PrimitiveBaseConfig,DefaultStaticConfig]]
     
     objective:Optional[Literal['trajectory_following','move_in_circles','move_forward','None']]
-    objective_config:Union[ObjectiveForwardConfig,ObjectiveTrajectoryConfig]
+    objective_config:Union[ObjectiveForwardConfig,ObjectiveTrajectoryConfig,ThrowObjectConfig]
     
     use_renderer:bool
     frame_dt: float

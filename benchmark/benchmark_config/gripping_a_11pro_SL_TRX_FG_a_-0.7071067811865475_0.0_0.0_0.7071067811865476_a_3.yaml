@@ -83,7 +83,7 @@ ENVIRONMENT:
     - 0.0
     - 0.0
     max_episode_steps: 400
-    reward_mode: per_step_velocity
+    reward_mode: final_step_position
   observation_space:
   - time
   - com

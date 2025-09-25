@@ -1,5 +1,4 @@
 import torch
-import taichi as ti
 
 from typing import TYPE_CHECKING,Union
 

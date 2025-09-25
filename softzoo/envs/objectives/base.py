@@ -1,12 +1,12 @@
 from typing import TYPE_CHECKING,Union
 
-from ...configs.config_dataclass import ObjectiveForwardConfig,ObjectiveTrajectoryConfig
+from ...configs.config_dataclass import ObjectiveForwardConfig,ObjectiveTrajectoryConfig,ThrowObjectConfig
 
 if TYPE_CHECKING:
     from ..base_env import BaseEnv
 
 class Base:
-    def __init__(self, env:'BaseEnv', config:Union[ObjectiveTrajectoryConfig,ObjectiveForwardConfig]):
+    def __init__(self, env:'BaseEnv', config:Union[ObjectiveTrajectoryConfig,ObjectiveForwardConfig,ThrowObjectConfig]):
         self.env = env
         self.config = config
 
