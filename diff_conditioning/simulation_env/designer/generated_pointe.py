@@ -238,8 +238,8 @@ class GeneratedPointEPCD(Base):
         
         # region Assigning Fingers to Base
         angles = torch.arange(num_fingers, device=self.device) * (2 * torch.pi / num_fingers)
-        x_axis_pos = torch.cos(torch.pi + angles) * 0.5
-        z_axis_pos = torch.sin(torch.pi + angles) * 0.5
+        x_axis_pos = torch.cos(torch.pi - angles) * 0.5
+        z_axis_pos = torch.sin(torch.pi - angles) * 0.5
         y_axis_pos = torch.zeros_like(x_axis_pos) + max_base_y - max_gripper_y
         
         fingers_pos = torch.stack([x_axis_pos, y_axis_pos, z_axis_pos], dim=1)  # [N,3]

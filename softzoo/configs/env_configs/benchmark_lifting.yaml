@@ -18,7 +18,7 @@ ENVIRONMENT:
   objective_config:
     reward_mode: final
     forward_direction: [0., 1., 0.]
-    max_episode_steps: 400
+    max_episode_steps: 200
     obj_particles_id: 2
   ITEMS:
     # Terrain

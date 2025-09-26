@@ -69,6 +69,18 @@ class Mesh(PrimitiveBase):
             # Step 3.5: Perform Rotation
             rot_matrix = Quaternion(*self.initial_rotation).rotation_matrix # uses w,x,y,z
             triangles  = apply_rotation_to_triangles(triangles,rot_matrix,target_center)
+            
+            # Step 3.9: Ensure at center
+            mean_x = triangles[:, 0::3].mean()
+            mean_y = triangles[:, 1::3].mean()
+            mean_z = triangles[:, 2::3].mean()
+
+            centroid = np.array([mean_x, mean_y, mean_z])       # (3,)
+            final_offset = target_center - centroid             # (3,)
+
+            triangles[:, 0::3] += final_offset[0]
+            triangles[:, 1::3] += final_offset[1]
+            triangles[:, 2::3] += final_offset[2]
 
             # Step 4
             new_bbox_min_y = triangles[:, 1::3].min()

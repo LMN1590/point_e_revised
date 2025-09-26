@@ -3,6 +3,8 @@ import yaml
 import copy
 import numpy as np
 from itertools import product
+from tqdm import tqdm
+import random
 from pyquaternion import Quaternion
 
 def generate_quaternion_grid(resolution=2):
@@ -34,23 +36,23 @@ if __name__ == "__main__":
     benchmark_config_path = 'benchmark/benchmark_config'
     os.makedirs(benchmark_config_path,exist_ok=True)
     quats = generate_quaternion_grid(4)
+    real_scales = [0.3,0.55,0.8]
     with open(base_config_path) as f:
         env_config = yaml.safe_load(f)
 
     base_dir = '/media/aioz-nghiale/data1/Data/mujoco_scanned_objects/models'
-    for obj in os.listdir(base_dir)[:2]:
+    for obj in tqdm(os.listdir(base_dir)[:15]):
         obj_path = os.path.join(base_dir,obj,'model.obj')
-        for quat in quats:
-            for scale in range(3,8,1):
-                real_scale = scale/10
-                
+        random_quats = random.sample(quats,k=16)
+        for quat in random_quats:
+            for real_scale in real_scales:
                 base_config = copy.deepcopy(env_config)
                 mesh_config = [item for item in base_config['ENVIRONMENT']['ITEMS'] if item['type']=='Primitive.Mesh'][0]
                 mesh_config['file_path'] = obj_path
                 mesh_config['scale'] = [real_scale for _ in range(3)]
                 mesh_config['initial_rotation'] = quat
                 
-                config_name = f'gripping_a_{obj}_a_{"_".join([str(item)for item in quat])}_a_{scale}.yaml'
+                config_name = f'gripping_a_{obj}_a_{"_".join([str(item)for item in quat])}_a_{real_scale}.yaml'
                 with open(os.path.join(benchmark_config_path,config_name),'w') as f:
                     yaml.safe_dump(base_config,f)
     # print(count)
