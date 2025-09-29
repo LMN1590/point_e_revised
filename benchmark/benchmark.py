@@ -1,3 +1,5 @@
+# python -m benchmark.benchmark --num_finger 2 --env_config_path benchmark_lifting.yaml
+
 import torch
 import numpy as np
 import random
