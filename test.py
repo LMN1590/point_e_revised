@@ -1,12 +1,21 @@
 import torch
-from torchcubicspline import natural_cubic_spline_coeffs, NaturalCubicSpline
 
-t = torch.linspace(0,0.1,6)
-x = torch.tensor([0,4,16,36,64,100]).float().unsqueeze(1)
-x.requires_grad_(True)
-coeffs = natural_cubic_spline_coeffs(t, x)
-spline = NaturalCubicSpline(coeffs)
-
-point = torch.tensor(0.01)
-out = spline.evaluate(point)
-print(out)
+sample = torch.tensor([
+    [2,2,2],
+    [3,3,3]
+])
+scaled = torch.tensor([
+    0.1,0.2,0.3,0.4
+])
+offset = torch.tensor([
+    [[0.1,0.1,0.1]],
+    [[0.2,0.2,0.2]],
+    [[0.3,0.3,0.3]],
+    [[0.4,0.4,0.4]]
+])
+# print(sample.shape)
+repeated_sample = sample.repeat(4,1,1)
+scaled_repeat = scaled[:,None,None]
+print(repeated_sample.shape)
+print(offset.shape)
+print(repeated_sample + offset)

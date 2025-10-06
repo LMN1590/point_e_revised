@@ -1,0 +1,12 @@
+{
+    "complete_segment_path": "asset/segment/complete_segment.pcd",
+    
+    "cylinder_color": [0.0,0.0,0.0],
+    "base_length": 0.1,
+    "radius": 0.02,
+
+    "finger_encoded_dim": 11,
+
+    "spline_range": [0.25,4.0],
+    "lengthen_range": [0.1,2.0]
+}
