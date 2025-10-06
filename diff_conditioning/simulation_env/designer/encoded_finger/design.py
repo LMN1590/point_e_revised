@@ -148,13 +148,12 @@ class EncodedFinger(torch.nn.Module):
         lengthen_val = lengthen_tensor * (
             self.base_config['lengthen_range'][1]-self.base_config['lengthen_range'][0]
         ) + self.base_config['lengthen_range'][0] # (B,)
-        lengthen_val_reshaped = lengthen_val.repeat(1, batched_cylinder_pts.shape[2]).unsqueeze(-1) # (B,N,1)
+        lengthen_val_reshaped = lengthen_val[:,None,None ]# (B,1,1)
         lengthen_scale = torch.cat([
             torch.ones_like(lengthen_val_reshaped),
             lengthen_val_reshaped,
             torch.ones_like(lengthen_val_reshaped)
-        ]) # (B,N,3)
-        
+        ],dim=-1) # (B,N,3)
         batched_mod_cylinder_pts = batched_cylinder_pts.reshape(num_fingers*num_segments,self.cylinder_num_pts,3) * lengthen_scale # (B,N,3)
         
         # Scale the connection ends to correspond with new length

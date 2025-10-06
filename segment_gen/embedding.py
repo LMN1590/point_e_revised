@@ -46,7 +46,6 @@ def splining(ctrl_tensor, cylinder_pts:torch.Tensor)->torch.Tensor:
         spline_ctrl_pts,            # (B,4)
         last_col                    # (B,1)
     ],dim=1)
-    print(full_ctrl_pts)
     
     t = torch.linspace(0,base_length,6)
     coeffs = natural_cubic_spline_coeffs(t, full_ctrl_pts.T) # [6,(6,B)]
@@ -73,7 +72,6 @@ def lengthening(ctrl_tensor, batched_cylinder_pts:torch.Tensor,conn_ends:torch.T
         torch.Tensor: Modified full segment points after lengthening deformation of shape (B, N+M, 3)
     """
     lengthen_val = ctrl_tensor[:,0] * (lengthen_range[1]-lengthen_range[0]) + lengthen_range[0] # (B,)
-    print(lengthen_val)
     lengthen_val_reshaped = lengthen_val.repeat(1, batched_cylinder_pts.shape[1]).unsqueeze(-1) # (B,N,1)
     lengthen_scale = torch.cat([
         torch.ones_like(lengthen_val_reshaped),
@@ -87,14 +85,15 @@ def lengthening(ctrl_tensor, batched_cylinder_pts:torch.Tensor,conn_ends:torch.T
     
 
 mod_cylinder_pts = splining(ctrl_tensor, cylinder_pts)
-transformed_segments = lengthening(ctrl_tensor, mod_cylinder_pts, conn_ends)
+print(mod_cylinder_pts[0].max(0),mod_cylinder_pts[0].min(0))
+# transformed_segments = lengthening(ctrl_tensor, mod_cylinder_pts, conn_ends)
 
-arr = torch.cat([transformed_segments[0],conn_ends],dim=0).detach().numpy()
+arr = torch.cat([mod_cylinder_pts[0]],dim=0).detach().numpy()
 full_segment = o3d.geometry.PointCloud()
 full_segment.points = o3d.utility.Vector3dVector(arr)
 colors = np.vstack([
-    np.zeros((transformed_segments[0].shape[0], 3)),
-    np.full((conn_ends.shape[0], 3), 0.75)
+    np.zeros((mod_cylinder_pts[0].shape[0], 3)),
+    # np.full((conn_ends.shape[0], 3), 0.75)
 ])
 full_segment.colors = o3d.utility.Vector3dVector(colors)
 o3d.visualization.draw_geometries([full_segment])
