@@ -3,6 +3,7 @@ from torchcubicspline import natural_cubic_spline_coeffs, NaturalCubicSpline
 import numpy as np
 
 import open3d as o3d
+from pytorch3d.transforms import quaternion_multiply,quaternion_apply
 
 from typing import TYPE_CHECKING, Dict, List, Optional, Callable, Literal,Union, Tuple
 from typing_extensions import TypedDict
@@ -223,20 +224,29 @@ class EncodedFinger(torch.nn.Module):
             num_segments (int): Number of segments per finger.
             ctrl_tensor (torch.Tensor): Control points tensor of shape (num_finger,num_seg,D).
             full_segment_pts (torch.Tensor): Full segment points tensor of shape (num_finger,num_seg,N+M,3).
+            top_conn_pts (torch.Tensor): Top connection points tensor of shape (num_finger,num_seg,3).
         Returns: 
         """
         quat_tensor = ctrl_tensor[:,:,5:9] # (num_finger,num_seg,4)
         quat_normalized = quat_tensor / quat_tensor.norm(dim=-1,keepdim=True) # (num_finger,num_seg,4)
-        return torch.zeros(1)
+        cummulative_quat = quat_normalized.clone() # (num_finger,num_seg,4)
+        for i in range(1,num_segments):
+            cummulative_quat[:,i,:] = quaternion_multiply(cummulative_quat[:,i,:],cummulative_quat[:,i-1,:])
+        oriented_segments = quaternion_apply(
+            full_segment_pts,               # (num_finger,num_seg,N+M,3)
+            cummulative_quat[:,:,None,:]    # (num_finger,num_seg,1,4)
+        )
+        
+        rotated_top_conn_pts = quaternion_apply(
+            top_conn_pts,                   # (num_finger,num_seg,3)
+            cummulative_quat                # (num_finger,num_seg,4)
+        )
+        translated_rotated_top_conn_pts = rotated_top_conn_pts.clone() # (num_finger,num_seg,3)
+        for i in range(1,num_segments):
+            translated_rotated_top_conn_pts[:,i,:] += translated_rotated_top_conn_pts[:,i-1,:]
+        rolled_offset = torch.roll(translated_rotated_top_conn_pts,shifts=1,dims=1)
+        rolled_offset[:,0,:] = torch.zeros_like(rolled_offset[:,0,:]) # (num_finger,num_seg,3)
+        
+        return oriented_segments + rolled_offset[:,:,None,:] # (num_finger,num_seg,N+M,3)
     
-if __name__ == '__main__':
-    import json
-    with open("diff_conditioning/simulation_env/designer/encoded_finger/range_config/base_config.json") as f:
-        base_config = json.load(f)
-    designer = EncodedFinger(
-        base_config=base_config,
-        device='cpu'
-    )
-        
-        
         
