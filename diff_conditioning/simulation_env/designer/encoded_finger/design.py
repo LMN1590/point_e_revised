@@ -9,7 +9,8 @@ from typing import TYPE_CHECKING, Dict, List, Optional, Callable, Literal,Union,
 from typing_extensions import TypedDict
 
 from ..base import Base
-from .base_config import BaseConfig
+from .base_config import Config
+from ..utils import calibrate_translate_pts,rotate_y
 
 if TYPE_CHECKING:
     from softzoo.envs.base_env import BaseEnv
@@ -17,7 +18,7 @@ if TYPE_CHECKING:
 # class EncodedFinger(Base):
 class EncodedFinger(torch.nn.Module):
     def __init__(
-        self, base_config:BaseConfig, #env:'BaseEnv', 
+        self, base_config:Config, #env:'BaseEnv', 
         sigma:float = 7e-4,
         passive_geometry_mul:int=1,passive_softness_mul:int=1,
         device:str='cpu',
@@ -40,17 +41,31 @@ class EncodedFinger(torch.nn.Module):
         # self.original_coords = self.original_coords.to(self.device)
         
         self._load_base_segment()
+        self._load_fixed_base()
     
     def _load_base_segment(self):
-        base_pcd = o3d.io.read_point_cloud(self.base_config['complete_segment_path'])
+        base_pcd = o3d.io.read_point_cloud(self.base_config['segment_config']['complete_segment_path'])
         base_pts = np.asarray(base_pcd.points)
         base_colors = np.asarray(base_pcd.colors)
 
-        cylinder_mask = np.all(base_colors==self.base_config['cylinder_color'],axis=1)
+        cylinder_mask = np.all(base_colors==self.base_config['segment_config']['cylinder_color'],axis=1)
         self.cylinder_pts = torch.from_numpy(base_pts[cylinder_mask]).to(self.device) #(N,3)
         self.conn_ends = torch.from_numpy(base_pts[~cylinder_mask]).to(self.device) # (M,3)
         self.cylinder_num_pts = self.cylinder_pts.shape[0]
         self.conn_ends_num_pts = self.conn_ends.shape[0]
+    def _load_fixed_base(self):
+        base_pcd = o3d.io.read_point_cloud(self.base_config['fixed_base_config']['fixed_base_path'])
+        base_points = torch.from_numpy(np.asarray(base_pcd.points)).to(self.device)
+        calibrated_base_pts = calibrate_translate_pts(
+            base_points, 
+            mean = torch.tensor([0.,0.,0.]).to(self.device), 
+            scale=torch.tensor([1.,1.,1.]).to(self.device)
+        )
+        base_labels = [0 for _ in range(base_points.shape[0])]
+        self.base_pts = calibrated_base_pts
+        self.base_lbls = np.array(base_labels)    
+
+    
         
     def forward(self, ctrl_tensor:torch.Tensor)->torch.Tensor:
         """
@@ -84,12 +99,33 @@ class EncodedFinger(torch.nn.Module):
             ctrl_tensor,full_segment_pts,top_conn_pts
         ) # (num_finger,num_seg,N+M,3)
         full_fingers = rotated_segments.reshape(num_fingers,-1,3)
-        reversed_finger = full_fingers * torch.tensor([[[1.,-1.,1.]]])
-        return reversed_finger
+        reversed_finger = full_fingers * torch.tensor([[[1.,-1.,1.]]]) # (num_finger,num_segment*(N+M),3)
+        
+        # Plug fingers into the base, the root of the finger is already at (0,0,0)
+        angles = torch.arange(num_fingers, device=self.device) * (2 * torch.pi / num_fingers) #(num_fingers)
+        quats_angles = torch.stack([
+            torch.cos(angles/2),
+            torch.zeros_like(angles),
+            torch.sin(angles/2),
+            torch.zeros_like(angles)
+        ],dim=-1) # (num_fingers,4)
+        
+        x_axis_pos = torch.cos(torch.pi - angles) * self.base_config['fixed_base_config']['finger_radius']
+        z_axis_pos = torch.sin(torch.pi - angles) * self.base_config['fixed_base_config']['finger_radius']
+        y_axis_pos = torch.zeros_like(x_axis_pos)
+        fingers_pos = torch.stack([x_axis_pos, y_axis_pos, z_axis_pos], dim=1)  # [num_finger,3]
+        
+        oriented_finger = quaternion_apply(
+            quats_angles[:,None,:],     # (num_fingers,1,4)
+            reversed_finger             # (num_fingers,(N+M)*num_segments,3)
+        )
+        translated_oriented_finger = oriented_finger + fingers_pos[:,None,:]
+        
+        return torch.concat([self.base_pts,translated_oriented_finger.reshape(-1,3)],dim = 0) # (num_particle,3)
         
         
-        
-    # region Geometrical Transformations
+    
+    # region Finger Transformation
     def _transform_splining(
         self,
         num_fingers:int,num_segments:int,
@@ -106,12 +142,12 @@ class EncodedFinger(torch.nn.Module):
         """
         # B = num_fingers * num_segments
         # N = num_pts_per_segment
-        t_sample = self.cylinder_pts[:,1] + (self.base_config['base_length']/2)
+        t_sample = self.cylinder_pts[:,1] + (self.base_config['segment_config']['base_length']/2)
         
         spline_ctrl_tensor = ctrl_tensor[:,:,1:5].reshape(num_fingers*num_segments,4) # (num_fingers*num_seg,4)
         spline_ctrl_pts = spline_ctrl_tensor*(
-            self.base_config['spline_range'][1]-self.base_config['spline_range'][0]
-        ) + self.base_config['spline_range'][0] # (B,4)
+            self.base_config['segment_config']['spline_range'][1]-self.base_config['segment_config']['spline_range'][0]
+        ) + self.base_config['segment_config']['spline_range'][0] # (B,4)
         outer_cols = torch.ones(spline_ctrl_pts.shape[0],2)
         full_ctrl_pts = torch.cat([
             outer_cols[:,:1], # (B,1)
@@ -119,7 +155,7 @@ class EncodedFinger(torch.nn.Module):
             outer_cols[:,1:]  # (B,1)
         ],dim=1) # (B,6)
         
-        t = torch.linspace(0,self.base_config['base_length'],6)
+        t = torch.linspace(0,self.base_config['segment_config']['base_length'],6)
         coeffs = natural_cubic_spline_coeffs(t, full_ctrl_pts.T) # [6,(6,B)]
         spline = NaturalCubicSpline(coeffs)
         spline_res = spline.evaluate(t_sample) # (N,B)
@@ -153,8 +189,8 @@ class EncodedFinger(torch.nn.Module):
         lengthen_tensor = ctrl_tensor[:,:,0].reshape(num_fingers*num_segments) # (B,)
         
         lengthen_val = lengthen_tensor * (
-            self.base_config['lengthen_range'][1]-self.base_config['lengthen_range'][0]
-        ) + self.base_config['lengthen_range'][0] # (B,)
+            self.base_config['segment_config']['lengthen_range'][1]-self.base_config['segment_config']['lengthen_range'][0]
+        ) + self.base_config['segment_config']['lengthen_range'][0] # (B,)
         lengthen_val_reshaped = lengthen_val[:,None,None ]# (B,1,1)
         lengthen_scale = torch.cat([
             torch.ones_like(lengthen_val_reshaped),
@@ -167,7 +203,7 @@ class EncodedFinger(torch.nn.Module):
         top_conn_ends = self.conn_ends[self.conn_ends[:,1]>0] # (M1,3)
         bottom_conn_ends = self.conn_ends[self.conn_ends[:,1]<0] # (M2,3)
         
-        offset_length = (self.base_config['base_length']/2 * (lengthen_val - 1.0))[:,None,None] # (B,1,1)
+        offset_length = (self.base_config['segment_config']['base_length']/2 * (lengthen_val - 1.0))[:,None,None] # (B,1,1)
         top_conn_offset = torch.cat([
             torch.zeros_like(offset_length),
             offset_length,
@@ -196,7 +232,7 @@ class EncodedFinger(torch.nn.Module):
         # -----  => -----
         # |   |
         # |   |
-        total_offset_y = (self.base_config['base_length']/2 * lengthen_val + self.base_config['radius'])[:,None,None] # (B,1,1)
+        total_offset_y = (self.base_config['segment_config']['base_length']/2 * lengthen_val + self.base_config['segment_config']['radius'])[:,None,None] # (B,1,1)
         total_offset = torch.cat([
             torch.zeros_like(total_offset_y),
             total_offset_y,
@@ -204,7 +240,7 @@ class EncodedFinger(torch.nn.Module):
         ],dim=-1) # (B,1,3)
         
         # Get top connection points
-        top_conn_y = self.base_config['radius'] + self.base_config['base_length']*lengthen_val + self.base_config['radius'] #(B,)
+        top_conn_y = self.base_config['segment_config']['radius'] + self.base_config['segment_config']['base_length']*lengthen_val + self.base_config['segment_config']['radius'] #(B,)
         top_conn_pts = torch.stack([
             torch.zeros_like(top_conn_y),
             top_conn_y,
@@ -215,7 +251,6 @@ class EncodedFinger(torch.nn.Module):
             (complete_origin_centered_segment + total_offset).reshape(num_fingers,num_segments,self.cylinder_num_pts+self.conn_ends_num_pts,3), # (num_finger,num_seg,N+M,3)
             top_conn_pts.reshape(num_fingers,num_segments,3) # (num_finger,num_seg,3)
         )
-    # endregion
         
     def _rotate_segment(
         self,
@@ -254,5 +289,6 @@ class EncodedFinger(torch.nn.Module):
         rolled_offset[:,0,:] = torch.zeros_like(rolled_offset[:,0,:]) # (num_finger,num_seg,3)
         
         return oriented_segments + rolled_offset[:,:,None,:] # (num_finger,num_seg,N+M,3)
+    # endregion
     
         
