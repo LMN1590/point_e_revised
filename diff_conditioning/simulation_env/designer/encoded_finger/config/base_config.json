@@ -1,15 +1,15 @@
 {
     "fixed_base_config":{
         "fixed_base_path": "diff_conditioning/simulation_env/asset/fixed_base_big.pcd",
-        "finger_radius": 0.5
+        "finger_radius": 0.6
     },
     
     "segment_config":{
-        "complete_segment_path": "diff_conditioning/simulation_env/asset/complete_segment.pcd",
+        "complete_segment_path": "diff_conditioning/simulation_env/asset/complete_segment_h05_r01.pcd",
         
         "cylinder_color": [0.0,0.0,0.0],
-        "base_length": 0.1,
-        "radius": 0.02,
+        "base_length": 0.5,
+        "radius": 0.1,
 
         "finger_encoded_dim": 11,
 

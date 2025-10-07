@@ -30,10 +30,11 @@ colors = np.vstack([
 ])
 
 
-arr = np.concatenate([top_arr,top_core,rest_core,bottom_core,bottom_arr],axis=0)*0.02
+arr = np.concatenate([top_arr,top_core,rest_core,bottom_core,bottom_arr],axis=0)*0.1
 full_segment = o3d.geometry.PointCloud()
 full_segment.points = o3d.utility.Vector3dVector(arr)
 full_segment.colors = o3d.utility.Vector3dVector(colors)
 o3d.visualization.draw_geometries([full_segment])
 o3d.io.write_point_cloud('complete_segment.pcd', full_segment)
 print(arr.max(axis=0),arr.min(axis=0))
+print(arr.shape)
