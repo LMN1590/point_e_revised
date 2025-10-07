@@ -5,20 +5,20 @@
     },
     
     "segment_config":{
-        "complete_segment_path": "diff_conditioning/simulation_env/asset/complete_segment_h05_r01.pcd",
+        "complete_segment_path": "diff_conditioning/simulation_env/asset/complete_segment_h04_r008.pcd",
         
         "cylinder_color": [0.0,0.0,0.0],
-        "base_length": 0.5,
-        "radius": 0.1,
+        "base_length": 0.4,
+        "radius": 0.08,
 
         "finger_encoded_dim": 10,
 
         "spline_range": [0.25,4.0],
-        "lengthen_range": [0.1,2.0],
+        "lengthen_range": [0.1,1.0],
         "rotation_range":[
-            [0.0,1.57],
+            [-0.785,0.785],
             [0.0,3.14],
-            [0.0,1.57]
+            [-0.785,0.785]
         ]
     }
 }

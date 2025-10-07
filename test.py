@@ -11,8 +11,8 @@ with open("diff_conditioning/simulation_env/designer/encoded_finger/config/base_
 designer = EncodedFinger(
     base_config=base_config
 )
-ctrl_tensor = torch.tensor([[0.25,0.3,0.3,0.75,0.3,1.,0.,0.,0.1,0.,0.]])
-ctrl_tensor = ctrl_tensor.repeat(4,4,1)
+ctrl_tensor = torch.sigmoid(torch.randn(4,4,10))
+# ctrl_tensor = ctrl_tensor.repeat(4,4,1)
 ctrl_tensor.requires_grad_(True)
 gripper = designer._create_gripper(ctrl_tensor)
 
