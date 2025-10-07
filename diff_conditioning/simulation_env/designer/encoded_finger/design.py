@@ -3,7 +3,7 @@ from torchcubicspline import natural_cubic_spline_coeffs, NaturalCubicSpline
 import numpy as np
 
 import open3d as o3d
-from pytorch3d.transforms import quaternion_multiply,quaternion_apply
+from pytorch3d.transforms import quaternion_multiply,quaternion_apply,axis_angle_to_quaternion
 
 from typing import TYPE_CHECKING, Dict, List, Optional, Callable, Literal,Union, Tuple
 from typing_extensions import TypedDict
@@ -268,7 +268,11 @@ class EncodedFinger(torch.nn.Module):
             top_conn_pts (torch.Tensor): Top connection points tensor of shape (num_finger,num_seg,3).
         Returns: 
         """
-        quat_tensor = ctrl_tensor[:,:,5:9] # (num_finger,num_seg,4)
+        axis_angle_tensor = ctrl_tensor[:,:,5:8] # (num_finger,num_seg,3)
+        rotation_range = torch.tensor(self.base_config['segment_config']['rotation_range']).to(self.device) # (3,2)
+        axis_angle_scaled = axis_angle_tensor*(rotation_range[None,None,:,0] - rotation_range[None,None,:,1]) + rotation_range[None,None,:,0] # (num_finger,num_seg, 3)
+        
+        quat_tensor = axis_angle_to_quaternion(axis_angle_scaled)
         quat_normalized = quat_tensor / quat_tensor.norm(dim=-1,keepdim=True) # (num_finger,num_seg,4)
         cummulative_quat = quat_normalized.clone() # (num_finger,num_seg,4)
         for i in range(1,num_segments):

@@ -11,9 +11,14 @@
         "base_length": 0.5,
         "radius": 0.1,
 
-        "finger_encoded_dim": 11,
+        "finger_encoded_dim": 10,
 
         "spline_range": [0.25,4.0],
-        "lengthen_range": [0.1,2.0]
+        "lengthen_range": [0.1,2.0],
+        "rotation_range":[
+            [0.0,1.57],
+            [0.0,3.14],
+            [0.0,1.57]
+        ]
     }
 }

@@ -1,4 +1,4 @@
-from typing import Tuple
+from typing import Tuple,List
 from typing_extensions import TypedDict
 
 class SegmentConfig(TypedDict):
@@ -12,6 +12,7 @@ class SegmentConfig(TypedDict):
     
     spline_range:Tuple[float,float]
     lengthen_range:Tuple[float,float]
+    rotation_range: List[Tuple[float,float,float]]
     
 class BaseConfig(TypedDict):
     fixed_base_path:str
