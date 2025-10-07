@@ -1,4 +1,5 @@
 from utils import init_log_dir
+import numpy as np
 import json
 import torch
 import open3d as o3d
@@ -10,21 +11,28 @@ with open("diff_conditioning/simulation_env/designer/encoded_finger/config/base_
 designer = EncodedFinger(
     base_config=base_config
 )
-ctrl_tensor = torch.tensor([[0.5,0.3,0.3,0.75,0.3,0.,0.,0.,0.,0.,0.]])
+ctrl_tensor = torch.tensor([[0.25,0.3,0.3,0.75,0.3,1.,0.,0.,0.05,0.,0.]])
 ctrl_tensor = ctrl_tensor.repeat(4,4,1)
 ctrl_tensor.requires_grad_(True)
-gripper = designer._transform_splining(4,4,ctrl_tensor)
-full_gripper, end_pts = designer._transform_lengthening(4,4,ctrl_tensor,gripper)
-print(full_gripper)
-print(full_gripper[0,0].max(0),full_gripper[0,0].min(0))
+gripper = designer._create_gripper(ctrl_tensor)
 
 
-segment = full_gripper[0,0].detach().cpu().numpy()
+
+segment = gripper[0].detach().cpu().numpy()
+print(segment.max(0),segment.min(0))
 pcd = o3d.geometry.PointCloud()
 pcd.points = o3d.utility.Vector3dVector(segment)
 
+colors = np.vstack([
+    np.zeros((666, 3)),
+    np.tile(np.array([1.,0.,0.]), (666, 1)),
+    np.tile(np.array([0.,1.,0.]), (666, 1)),
+    np.tile(np.array([0.,0.,1.]), (666, 1))
+])
+pcd.colors = o3d.utility.Vector3dVector(colors)
+
 # Optional: set color
-pcd.paint_uniform_color([0.2, 0.7, 1.0])
+# pcd.paint_uniform_color([0.2, 0.7, 1.0])
 
 # Visualize
 o3d.visualization.draw_geometries([pcd])

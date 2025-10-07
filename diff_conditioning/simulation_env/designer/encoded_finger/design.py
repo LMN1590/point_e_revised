@@ -79,7 +79,13 @@ class EncodedFinger(torch.nn.Module):
         
         splined_cylinder_pts = self._transform_splining(num_fingers,num_segment_per_finger,ctrl_tensor) # (num_finger,num_seg,N,3)
         full_segment_pts,top_conn_pts = self._transform_lengthening(num_fingers,num_segment_per_finger,ctrl_tensor,splined_cylinder_pts) # (num_finger,num_seg,N+M,3)
-        return full_segment_pts
+        rotated_segments = self._rotate_segment(
+            num_fingers,num_segment_per_finger,
+            ctrl_tensor,full_segment_pts,top_conn_pts
+        ) # (num_finger,num_seg,N+M,3)
+        full_fingers = rotated_segments.reshape(num_fingers,-1,3)
+        reversed_finger = full_fingers * torch.tensor([[[1.,-1.,1.]]])
+        return reversed_finger
         
         
         
@@ -198,8 +204,8 @@ class EncodedFinger(torch.nn.Module):
         ],dim=-1) # (B,1,3)
         
         # Get top connection points
-        top_conn_y = self.base_config['radius'] + self.base_config['base_length']*lengthen_val + self.base_config['radius']
-        top_conn_pts = torch.cat([
+        top_conn_y = self.base_config['radius'] + self.base_config['base_length']*lengthen_val + self.base_config['radius'] #(B,)
+        top_conn_pts = torch.stack([
             torch.zeros_like(top_conn_y),
             top_conn_y,
             torch.zeros_like(top_conn_y)
@@ -233,13 +239,13 @@ class EncodedFinger(torch.nn.Module):
         for i in range(1,num_segments):
             cummulative_quat[:,i,:] = quaternion_multiply(cummulative_quat[:,i,:],cummulative_quat[:,i-1,:])
         oriented_segments = quaternion_apply(
+            cummulative_quat[:,:,None,:],   # (num_finger,num_seg,1,4)
             full_segment_pts,               # (num_finger,num_seg,N+M,3)
-            cummulative_quat[:,:,None,:]    # (num_finger,num_seg,1,4)
         )
         
         rotated_top_conn_pts = quaternion_apply(
+            cummulative_quat,               # (num_finger,num_seg,4)
             top_conn_pts,                   # (num_finger,num_seg,3)
-            cummulative_quat                # (num_finger,num_seg,4)
         )
         translated_rotated_top_conn_pts = rotated_top_conn_pts.clone() # (num_finger,num_seg,3)
         for i in range(1,num_segments):
