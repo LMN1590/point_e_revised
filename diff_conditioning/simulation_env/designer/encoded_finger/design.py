@@ -12,7 +12,7 @@ import logging
 
 from ..base import Base
 from .base_config import Config
-from ..utils import calibrate_translate_pts,rotate_y
+from ..utils import calibrate_translate_pts,rotate_y,visualize_point_cloud
 
 from softzoo.utils.general_utils import extract_part_pca_inner,row_permutation,extract_part_pca
 from softzoo.utils.computation_utils import directions_to_spherical
@@ -124,17 +124,16 @@ class EncodedFinger(Base):
         complete_pos_tensor = self._create_gripper(
             num_fingers,num_segment_per_finger,
             ctrl_tensor
-        )
+        ).float()
         
         complete_labels_np = self._create_labels(num_fingers,num_segment_per_finger)
-        print(complete_labels_np.shape)
+        visualize_point_cloud(complete_pos_tensor,complete_labels_np)
         unique_lbls = np.unique(complete_labels_np)
-        print(len(unique_lbls))
         if not self.env.sim.solver.n_actuators == unique_lbls.shape[0]:
             logging.warning(f"Warning!!!!: \n The number of actuators {self.env.sim.solver.n_actuators} must be equal to the number of generated labels {unique_lbls.shape[0]}. Probllem in configuration files")
             if unique_lbls.shape[0] > self.env.sim.solver.n_actuators:
-                raise NotImplementedError("The number of actuators exceed the limit of the simulation.")
-            
+                raise NotImplementedError(f"The number of actuators {unique_lbls.shape[0]} exceed the limit of the simulation {self.env.sim.solver.n_actuators}.")
+        
         actuator_directions = self._get_actuator_direction(complete_labels_np,complete_pos_tensor)
         softness_mul_by_lbl = self._get_sim_softness(ctrl_tensor)
         occupancy, actuator,is_passive,softness = self._get_sim_occupancy(complete_pos_tensor,complete_labels_np,unique_lbls,softness_mul_by_lbl)
@@ -149,7 +148,7 @@ class EncodedFinger(Base):
         """
         Generate gripper with fingers determined by the ctrl_tensor
         Args:
-            ctrl_tensor (torch.Tensor): Control points tensor of shape (num_finger, num_segment, D).
+            ctrl_tensor (torch.sor): Control points tensor of shape (num_finger, num_segment, D).
         Returns:
             torch.Tensor: Transform the ctrl_tensor into a working gripper with custom fingers.
         """
@@ -160,6 +159,7 @@ class EncodedFinger(Base):
             num_fingers,num_segment_per_finger,
             ctrl_tensor,full_segment_pts,top_conn_pts
         ) # (num_finger,num_seg,N+M,3)
+        
         full_fingers = rotated_segments.reshape(num_fingers,-1,3)
         reversed_finger = full_fingers * torch.tensor([[[1.,-1.,1.]]]) # (num_finger,num_segment*(N+M),3)
         
@@ -193,12 +193,12 @@ class EncodedFinger(Base):
             self.cylinder_pts,
             top_conn_ends,
             bottom_conn_ends
-        ],dim=1) # (N+M,3)
+        ],dim=0) # (N+M,3)
         
-        segment_lbls = torch.ones(full_segment_pts.shape[0])    #(N+M,)
-        segment_lbls[full_segment_pts[:,0]>0]=2.                #(N+M,)
+        segment_lbls = torch.ones(full_segment_pts.shape[0],dtype=torch.int8)    #(N+M,)
+        segment_lbls[full_segment_pts[:,0]>0]=2                 #(N+M,)
         
-        repeated_segment = segment_lbls.repeat(num_fingers,num_segments)    # (num_finger,num_segment,N+M)
+        repeated_segment = segment_lbls.repeat(num_fingers,num_segments,1)    # (num_finger,num_segment,N+M)
         offsets = (torch.arange(num_fingers).view(num_fingers, 1) * num_segments + torch.arange(num_segments)).view(num_fingers, num_segments, 1) * 2
         offseted_segment_lbl = repeated_segment + offsets                   # (num_finger,num_segment,N+M)
         
@@ -271,7 +271,6 @@ class EncodedFinger(Base):
             else: actuator[lbl,coords_cluster==lbl] = 1.
             softness[coords_cluster==lbl] = softness_mul[lbl]
         
-        # print(self.is_passive[(self.is_passive + self.occupancy)>1.].sum())
         # endregion
         
         return occupancy,actuator,is_passive,softness

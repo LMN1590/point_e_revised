@@ -9,7 +9,7 @@ from typing import Dict
 from config.config_dataclass import GeneralConfig
 
 import shutil
-config_path = 'config/config.yaml'
+config_path = 'config/debug_finger_rep.yaml'
 with open(config_path) as f:
     general_config:GeneralConfig = yaml.safe_load(f)
 
@@ -42,8 +42,9 @@ sim_cls = AltSoftzooSimulation.init_cond(
     softzoo_config=full_softzoo_config,
     sap_config=general_config['sap_config']
 )
-
-ctrl_tensor = torch.sigmoid(torch.randn(4,4,10))
+ctrl_tensor = torch.tensor([0.5,0.3,0.3,0.5,0.3,0.5,0.,0.5,1.,0.,])
+ctrl_tensor = ctrl_tensor.repeat(4,4,1)
+ctrl_tensor.requires_grad_(True)
 sim_cls.calculate_gradient(
     ctrl_tensor
 )

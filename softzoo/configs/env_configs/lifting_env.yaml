@@ -12,7 +12,7 @@ SIMULATOR:
   use_dynamic_field: False
   checkpoint_cache_device: torch_cpu
   base_active_materials: []
-  max_actuation: 13
+  max_actuation: 41
 ENVIRONMENT:
   objective: move_forward
   objective_config:
@@ -31,7 +31,7 @@ ENVIRONMENT:
       max_height: *ground_height
       dampen_coeff: 0.8 # Should be around 0.5-0.6, lower will cause sinking, higher will cause bounce.
     - type: Primitive.Mesh
-      file_path: './asset/obj_placeholder/model.obj'
+      file_path: './asset/obj_placeholder/bottle.obj'
       scale: [0.4,0.4,0.4]
       initial_position: [0.55, 0.0, 0.4]
       initial_rotation: [1., 0., 0.0, 0.0] # w,x,y,z
@@ -47,7 +47,7 @@ ENVIRONMENT:
   observation_space: [time, com]
   design_space: pbr
   design_space_config:
-    n_actuators: 13
+    n_actuators: 41
     initial_principle_direction: [1., 0., 0.]
     p_rho_lower_bound_mul: 0.1
     base_shape:
