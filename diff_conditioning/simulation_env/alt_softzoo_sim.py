@@ -10,6 +10,7 @@ import shutil
 import json
 from typing import Dict, List, Tuple,Union
 from tqdm import tqdm,trange
+import json
 
 from softzoo.configs.config_dataclass import FullConfig
 from softzoo.envs import ENV_CONFIGS_DIR
@@ -26,7 +27,7 @@ from . import controllers as controller_module
 
 from .utils.path import CONFIG_DIR,DEFAULT_CFG_DIR
 from ..base_cond import BaseCond
-from .designer.generated_pointe import GeneratedPointEPCD
+from .designer.encoded_finger.design import EncodedFinger
 from .designer.base import Base as DesignerBase
 
 from sap.config_dataclass import SAPConfig
@@ -34,36 +35,7 @@ from config.config_dataclass import ConditioningConfig
 from logger import TENSORBOARD_LOGGER as tensorboard_logger,CSVLOGGER
 import logging
 
-def normalize_to_unit_box(points: torch.Tensor):
-    """
-    Normalize points to mean=0 and fit inside [-0.5, 0.5] for all axes.
-
-    Args:
-        points: (N, 3) tensor of coordinates
-    Returns:
-        normalized: (N, 3) tensor
-    """
-    # 1. Center to mean 0
-    centered = points - points.mean(dim=0)
-
-    # 2. Find half-range along each axis (max absolute coordinate)
-    max_abs = centered.abs().max(dim=0).values
-
-    # 3. Scale so the largest axis fits into [-0.5, 0.5]
-    scale = (0.5 / max_abs).min()
-    normalized = centered * scale
-
-    return normalized
-
-def rotate_x_90_torch(points):
-    R = torch.tensor([
-        [1, 0, 0],
-        [0, 0, 1],
-        [0, -1, 0]
-    ], dtype=points.dtype, device=points.device)
-    return points @ R.T
-
-class SoftzooSimulation(BaseCond):
+class AltSoftzooSimulation(BaseCond):
     # region Initialization
     def __init__(
         self,
@@ -73,7 +45,7 @@ class SoftzooSimulation(BaseCond):
         grad_clamp:float = 1e-2,
         logging_bool:bool = True
     ):
-        super(SoftzooSimulation, self).__init__(name,grad_scale,calc_gradient,grad_clamp,logging_bool)
+        super(AltSoftzooSimulation, self).__init__(name,grad_scale,calc_gradient,grad_clamp,logging_bool)
         self.sap = CustomSAP(
             sap_config,
             device = torch.device(sap_config['device']),
@@ -108,14 +80,16 @@ class SoftzooSimulation(BaseCond):
         self.data_for_plots = dict(reward=[], loss=[])
 
     def _init_sim(self,config:FullConfig):
+        with open("diff_conditioning/simulation_env/designer/encoded_finger/config/base_config.json") as f:
+            content = json.load(f)
         self.env = make_env(config) 
         # Define loss
         self.loss_set = make_loss(config, self.env, self.torch_device)
             
         self.controller = controller_module.make(config, self.env, self.torch_device)
         
-        self.designer = GeneratedPointEPCD(
-            lr = self.config.designer_lr,
+        self.designer = EncodedFinger(
+            base_config = content,
             env = self.env,
             device = self.torch_device,
             bounding_box=self.config.gen_pointe_bounding_box
@@ -165,124 +139,74 @@ class SoftzooSimulation(BaseCond):
     # region Gradient Calc Wrapper
     def calculate_gradient(
         self, 
-        x: torch.Tensor, t: torch.Tensor,
-        p_mean_var:Dict[str,torch.Tensor],
-        diffusion:GaussianDiffusion,
-        local_iter:int, 
-        **model_kwargs
+        ctrl_tensor:torch.Tensor 
     ) -> torch.Tensor:
         # x is shaped (B*2, C, N)
-        logging.info(f'{self.name}: Start calculating gradients for SoftZoo...')
-        x = x.detach().requires_grad_(True)
+        x = ctrl_tensor.detach().requires_grad_(True)
         B = x.shape[0]
         cur_loss = []
         sap_loss_lst = []
         accum_grad = torch.zeros_like(x)
         with torch.enable_grad():
-            if 'original_ts' in model_kwargs:
-                t = model_kwargs['original_ts']
+            ep_reward,reward_log = self.forward_sim(
+                ctrl_tensor,
+                0,0,0
+            ) # gripper: cpu(design) -> cuda:0 (env)
+            all_loss,grad,grad_name_control = self.backward_sim()
+            cur_loss.append(all_loss[-1])
             
-            logging.info(f'{self.name}: Start calculate x_0 from x_t')
-            unscale_pred_xstart = diffusion._predict_xstart_from_eps(
-                x,t,
-                p_mean_var['eps']
-            )
-            pred_xstart = diffusion.unscale_channels(unscale_pred_xstart)
-            
-            pos = pred_xstart[:B//2,:3]
-            for i,t_sample in zip(range(B//2),t.tolist()):
-                logging.info(f'{self.name}: Start sampling dense gripper with SAP for batch_idx {i}')
-                x_0 = rotate_x_90_torch(pos[i].T.clone().detach()) # (N,3), device cuda:1
-                
-                dense_gripper,sap_loss = self.sap.dense_sample(
-                    x_0,
-                    batch_idx = i,
-                    sampling_step = t_sample,
-                    local_iter = local_iter
-                ) # (M,3), device cuda:1      
-                if sap_loss is None: 
-                    logging.warning(f"{self.name}: Gripper cannot be dense sampled. Skipping simulation")
-                    continue  
-                sap_loss_lst.append(sap_loss)
-                dense_gripper.requires_grad = True
-                
-                logging.info(f'{self.name}: Start forwarding simulation for batch_idx {i}')
-                ep_reward,reward_log = self.forward_sim(
-                    dense_gripper,
-                    batch_idx = i, 
-                    sampling_step=t_sample,
-                    local_iter = local_iter
-                ) # gripper: cpu(design) -> cuda:0 (env)
-                logging.info(f'{self.name}: Start backwarding simulation for batch_idx {i}')
-                all_loss,grad,grad_name_control = self.backward_sim()
-                cur_loss.append(all_loss[-1])
-                
-                if self.calc_gradient:
-                    #TODO: Apply grad here back to x
-                    logging.info(f'{self.name}: Start backpropagating gradients for batch_idx {i}')
-                    self.designer.out_cache['geometry'].backward(gradient=grad[None]['self.env.design_space.buffer.geometry'])
-                    if not torch.isnan(dense_gripper.grad.sum()):
-                        x_0_grad = self.sap.calculate_x0_grad(
-                            dense_gripper = dense_gripper,      # cuda:1
-                            dense_gradients=dense_gripper.grad, # cuda:1
-                            surface_gripper=x_0                 # cuda:1  
-                        )
-                        pos[i].backward(gradient=x_0_grad.T) # x_0_grad: (N,3), pos[i]: (3,N)
-                        cur_grad = x.grad[i,:3].clone()
-                        accum_grad[i,:3] = cur_grad
-                        # accum_grad[i+B//2,:3] = x.grad[i,:3]
-                        x.grad.zero_()            
-                    else:
-                        # TODO: Fix problem here where nan sometimes occur in simulation
-                        logging.warning("Warning!!!: Got nan",t)
-                
-                if self.logging_bool:
-                    CSVLOGGER.log({
-                        "phase": "SoftZoo_Simulation",
+            # if self.calc_gradient:
+            #     self.designer.out_cache['geometry'].backward(gradient=grad[None]['self.env.design_space.buffer.geometry'])
+            #     if not torch.isnan(dense_gripper.grad.sum()):
+            #         x_0_grad = self.sap.calculate_x0_grad(
+            #             dense_gripper = dense_gripper,      # cuda:1
+            #             dense_gradients=dense_gripper.grad, # cuda:1
+            #             surface_gripper=x_0                 # cuda:1  
+            #         )
+            #         pos[i].backward(gradient=x_0_grad.T) # x_0_grad: (N,3), pos[i]: (3,N)
+            #         cur_grad = x.grad[i,:3].clone()
+            #         accum_grad[i,:3] = cur_grad
+            #         # accum_grad[i+B//2,:3] = x.grad[i,:3]
+            #         x.grad.zero_()            
+            #     else:
+            #         # TODO: Fix problem here where nan sometimes occur in simulation
+            #         logging.warning("Warning!!!: Got nan",t)
+
                         
-                        "sampling_step": t_sample,
-                        "local_iter": local_iter,
-                        "batch_idx": i,
-                        
-                        "softzoo_loss": all_loss[-1],
-                        "softzoo_grad_norm": 0. if not self.calc_gradient else cur_grad.norm(2).item(),
-                        "softzoo_reward": ep_reward,
-                    })
-                        
-        sap_loss_lst = np.array(sap_loss_lst)
-        cur_loss = np.array(cur_loss)
-        self.grad_lst.append(accum_grad)
-        self.loss_lst.append(cur_loss)      
-        scaled_gradient = torch.clamp(-accum_grad*self.grad_scale,min = -self.grad_clamp,max=self.grad_clamp)
+        # sap_loss_lst = np.array(sap_loss_lst)
+        # cur_loss = np.array(cur_loss)
+        # self.grad_lst.append(accum_grad)
+        # self.loss_lst.append(cur_loss)      
+        # scaled_gradient = torch.clamp(-accum_grad*self.grad_scale,min = -self.grad_clamp,max=self.grad_clamp)
         
-        if self.logging_bool:
-            tensorboard_logger.log_scalar("Simulation_SoftZoo/All_Batch_SoftZoo_Loss",cur_loss.mean())
-            tensorboard_logger.log_scalar("Simulation_SAP/All_Batch_Loss",sap_loss_lst.mean())
-            tensorboard_logger.log_scalar("Simulation_SoftZoo/All_Batch_GradientNorm",scaled_gradient.reshape(-1).norm(2))
+        # if self.logging_bool:
+        #     tensorboard_logger.log_scalar("Simulation_SoftZoo/All_Batch_SoftZoo_Loss",cur_loss.mean())
+        #     tensorboard_logger.log_scalar("Simulation_SAP/All_Batch_Loss",sap_loss_lst.mean())
+        #     tensorboard_logger.log_scalar("Simulation_SoftZoo/All_Batch_GradientNorm",scaled_gradient.reshape(-1).norm(2))
             
-            CSVLOGGER.log({
-                "phase": "SoftZoo_Overall",
+        #     CSVLOGGER.log({
+        #         "phase": "SoftZoo_Overall",
                 
-                "sampling_step": t.tolist()[0],
-                "local_iter": local_iter,
+        #         "sampling_step": t.tolist()[0],
+        #         "local_iter": local_iter,
                 
-                "softzoo_mean_loss": cur_loss.mean(),
-                "softzoo_scaled_mean_grad_norm":scaled_gradient.reshape(-1).norm(2).item()
-            })
+        #         "softzoo_mean_loss": cur_loss.mean(),
+        #         "softzoo_scaled_mean_grad_norm":scaled_gradient.reshape(-1).norm(2).item()
+        #     })
   
-        return scaled_gradient
+        # return scaled_gradient
     # endregion
     
     # region Simulation
     def forward_sim(
         self,
-        gripper_pos_tensor:torch.Tensor,
+        ctrl_tensor:torch.Tensor,
         batch_idx:int,
         sampling_step:int,
         local_iter:int
     ):
         self.designer.reset()
-        designer_out = self.designer(gripper_pos_tensor,num_fingers=self.config.num_fingers)
+        designer_out = self.designer(ctrl_tensor)
         design = dict()
         for design_type in self.config.set_design_types:
             if design_type == 'actuator_direction': assert getattr(self.designer,'has_actuator_direction',False)
@@ -389,7 +313,7 @@ class SoftzooSimulation(BaseCond):
         return all_loss,grad,grad_name_control
     # endregion 
     @classmethod
-    def init_cond(cls,config:ConditioningConfig,softzoo_config:FullConfig, sap_config:SAPConfig,**kwargs)->'SoftzooSimulation':
+    def init_cond(cls,config:ConditioningConfig,softzoo_config:FullConfig, sap_config:SAPConfig,**kwargs)->'AltSoftzooSimulation':
         return cls(
             name = config['name'],
             config = softzoo_config,

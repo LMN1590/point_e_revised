@@ -276,7 +276,7 @@ class GeneratedPointEPCD(Base):
             actuator_directions.append(part_pca_component[0])
         actuator_directions = np.array(actuator_directions)
         actuator_directions = directions_to_spherical(actuator_directions)
-        self.actuator_directions = nn.Parameter(torch.from_numpy(actuator_directions))
+        self.actuator_directions = torch.from_numpy(actuator_directions).to(self.device)
         # endregion
         
         # region Calculate Occupancy (!!!!! Ensure Differentiability)
@@ -312,7 +312,7 @@ class GeneratedPointEPCD(Base):
         coords_lbls_prob = torch.zeros((self.original_coords.shape[0],self.env.sim.solver.n_actuators))
         for lbl in unique_lbls:
             coords_cur_lbls_prob = p_ji[:,complete_labels_np==lbl]
-            occupancy_cluster = (1 - torch.prod(1-coords_cur_lbls_prob,dim=1)) #*(1. if lbl!=passive_lbl else 1e4)
+            occupancy_cluster = (1 - torch.prod(1-coords_cur_lbls_prob,dim=1)) 
             coords_lbls_prob[:,lbl] = occupancy_cluster
         coords_cluster = coords_lbls_prob.argmax(dim=1)
         for lbl in unique_lbls:
