@@ -13,6 +13,8 @@ class SegmentConfig(TypedDict):
     spline_range:Tuple[float,float]
     lengthen_range:Tuple[float,float]
     rotation_range: List[Tuple[float,float,float]]
+    softness_range:Tuple[float,float]
+    actuation_strength_range:Tuple[float,float]
     
 class BaseConfig(TypedDict):
     fixed_base_path:str

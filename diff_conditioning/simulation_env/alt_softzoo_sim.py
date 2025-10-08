@@ -28,7 +28,7 @@ from . import controllers as controller_module
 from .utils.path import CONFIG_DIR,DEFAULT_CFG_DIR
 from ..base_cond import BaseCond
 from .designer.encoded_finger.design import EncodedFinger
-from .designer.base import Base as DesignerBase
+from .controllers.custom_finger_rep import CustomFingerRepController
 
 from sap.config_dataclass import SAPConfig
 from config.config_dataclass import ConditioningConfig
@@ -86,7 +86,13 @@ class AltSoftzooSimulation(BaseCond):
         # Define loss
         self.loss_set = make_loss(config, self.env, self.torch_device)
             
-        self.controller = controller_module.make(config, self.env, self.torch_device)
+        self.controller = CustomFingerRepController(
+            base_config=content,
+            env=self.env,
+            n_actuators=self.env.sim.solver.n_actuators,
+            device = self.torch_device,
+            active = config.active
+        )
         
         self.designer = EncodedFinger(
             base_config = content,
@@ -260,7 +266,7 @@ class AltSoftzooSimulation(BaseCond):
             
             current_s = self.env.sim.solver.current_s
             current_s_local = self.env.sim.solver.get_cyclic_s(current_s)
-            act = self.controller(current_s, obs)
+            act = self.controller(current_s, obs,ctrl_tensor)
             if self.config.action_space == 'particle_v':
                 self.env.design_space.add_to_v(current_s_local, act) # only add v to the first local substep since v accumulates
                 obs, reward, done, info = self.env.step(None,fixed_v)

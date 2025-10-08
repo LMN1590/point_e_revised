@@ -277,7 +277,10 @@ class EncodedFinger(Base):
     
     def _get_sim_softness(self,ctrl_tensor:torch.Tensor):
         softness_mul = ctrl_tensor[:,:,8].flatten() # (num_finger*num_segments)
-        softness_mul_by_lbls = softness_mul.repeat_interleave(2)
+        softness_mul_scaled = softness_mul * (
+            self.base_config['segment_config']['softness_range'][1] - self.base_config['segment_config']['softness_range'][0]
+        ) + self.base_config['segment_config']['softness_range'][0] # (B,)
+        softness_mul_by_lbls = softness_mul_scaled.repeat_interleave(2)
         return torch.concat([
             torch.tensor([1.]).to(self.device),
             softness_mul_by_lbls
