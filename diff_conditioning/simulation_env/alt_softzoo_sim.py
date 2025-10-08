@@ -161,10 +161,11 @@ class AltSoftzooSimulation(BaseCond):
             all_loss,grad,grad_name_control = self.backward_sim()
             cur_loss.append(all_loss[-1])
             
-            # if self.calc_gradient:
-            #     self.designer.out_cache['geometry'].backward(gradient=grad[None]['self.env.design_space.buffer.geometry'])
-            #     if not torch.isnan(dense_gripper.grad.sum()):
-            #         x_0_grad = self.sap.calculate_x0_grad(
+            if self.calc_gradient:
+                self.designer.out_cache['geometry'].backward(gradient=grad[None]['self.env.design_space.buffer.geometry'])
+                print(ctrl_tensor.grad)
+                # if not torch.isnan(dense_gripper.grad.sum()):
+                #     x_0_grad = self.sap.calculate_x0_grad(
             #             dense_gripper = dense_gripper,      # cuda:1
             #             dense_gradients=dense_gripper.grad, # cuda:1
             #             surface_gripper=x_0                 # cuda:1  

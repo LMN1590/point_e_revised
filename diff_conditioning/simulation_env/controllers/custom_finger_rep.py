@@ -22,6 +22,8 @@ class CustomFingerRepController(Base):
         self.to(device)
 
     def forward(self, s, inp, ctrl_tensor:torch.Tensor):
+        self.all_s.append(s)
+        
         ctrl_tensor = ctrl_tensor.to(self.device)
         strength_tensor = ctrl_tensor[:,:,9].flatten() # (num_finger*num_segment)
         strength_scaled = strength_tensor * (
@@ -35,6 +37,8 @@ class CustomFingerRepController(Base):
         
         inp = inp['time'].float()
         
+        act_scale = torch.zeros((self.n_actuators,), requires_grad=False)
+        act_scale[:full_strength.shape[0]] += full_strength
         act = torch.zeros((self.n_actuators,), requires_grad=False) # (1+num_finger*num_segment*2)
         if self.active:
             if s//16<90:
@@ -43,10 +47,14 @@ class CustomFingerRepController(Base):
             else:   
                 act[::2] = 1.0
                 act[1::2] = -1.0
-        act = act * full_strength
-        return act
+        act = act * act_scale
+        self.all_act.append(act)
+        
+        return act.detach().clone()
 
     def update(self, grad, retain_graph=False):
         pass
+    
     def reset(self):
-        pass
+        self.all_s = []
+        self.all_act = []

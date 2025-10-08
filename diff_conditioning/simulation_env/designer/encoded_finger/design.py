@@ -127,7 +127,7 @@ class EncodedFinger(Base):
         ).float()
         
         complete_labels_np = self._create_labels(num_fingers,num_segment_per_finger)
-        visualize_point_cloud(complete_pos_tensor,complete_labels_np)
+        # visualize_point_cloud(complete_pos_tensor,complete_labels_np)
         unique_lbls = np.unique(complete_labels_np)
         if not self.env.sim.solver.n_actuators == unique_lbls.shape[0]:
             logging.warning(f"Warning!!!!: \n The number of actuators {self.env.sim.solver.n_actuators} must be equal to the number of generated labels {unique_lbls.shape[0]}. Probllem in configuration files")
@@ -449,7 +449,7 @@ class EncodedFinger(Base):
         )
         translated_rotated_top_conn_pts = rotated_top_conn_pts.clone() # (num_finger,num_seg,3)
         for i in range(1,num_segments):
-            translated_rotated_top_conn_pts[:,i,:] += translated_rotated_top_conn_pts[:,i-1,:]
+            translated_rotated_top_conn_pts[:,i,:] = translated_rotated_top_conn_pts[:,i-1,:] + rotated_top_conn_pts[:,i,:]
         rolled_offset = torch.roll(translated_rotated_top_conn_pts,shifts=1,dims=1)
         rolled_offset[:,0,:] = torch.zeros_like(rolled_offset[:,0,:]) # (num_finger,num_seg,3)
         

@@ -21,6 +21,6 @@
             [-0.785,0.785]
         ],
         "softness_range": [0.5,1.5],
-        "actuation_strength_range": [0.0,0.8]
+        "actuation_strength_range": [0.0,0.3]
     }
 }
