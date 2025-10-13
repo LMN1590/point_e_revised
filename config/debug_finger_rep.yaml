@@ -1,4 +1,4 @@
-exp_name: debug_finger_rep
+exp_name: random_finger_rep_5e-2_iter500
 seed: &seed 310
 out_dir: ./logs/
 tensorboard_log_dir: runs/
@@ -34,7 +34,7 @@ preload_emb:
 softzoo_config:
   out_dir: null # Placeholder, need to be set in run.py
   fixed_v: gripping_5_HTP.json
-  env_config_file: lifting_env.yaml
+  env_config_file: benchmark_lifting.yaml
   save_every_iter: *log_freq
   render_every_iter: *log_freq
   n_iters: 301

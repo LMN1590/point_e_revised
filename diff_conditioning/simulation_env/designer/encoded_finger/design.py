@@ -435,9 +435,10 @@ class EncodedFinger(Base):
         
         quat_tensor = axis_angle_to_quaternion(axis_angle_scaled)
         quat_normalized = quat_tensor / quat_tensor.norm(dim=-1,keepdim=True) # (num_finger,num_seg,4)
-        cummulative_quat = quat_normalized.clone() # (num_finger,num_seg,4)
+        cummulative_quat_lst = [quat_normalized[:,0,:]]  # list of (num_finger,4)
         for i in range(1,num_segments):
-            cummulative_quat[:,i,:] = quaternion_multiply(cummulative_quat[:,i,:],cummulative_quat[:,i-1,:])
+            cummulative_quat_lst.append(quaternion_multiply(cummulative_quat_lst[-1],quat_normalized[:,i,:]))
+        cummulative_quat = torch.stack(cummulative_quat_lst,dim=1)  # (num_finger, num_segment, 4)
         oriented_segments = quaternion_apply(
             cummulative_quat[:,:,None,:],   # (num_finger,num_seg,1,4)
             full_segment_pts,               # (num_finger,num_seg,N+M,3)
@@ -447,9 +448,7 @@ class EncodedFinger(Base):
             cummulative_quat,               # (num_finger,num_seg,4)
             top_conn_pts,                   # (num_finger,num_seg,3)
         )
-        translated_rotated_top_conn_pts = rotated_top_conn_pts.clone() # (num_finger,num_seg,3)
-        for i in range(1,num_segments):
-            translated_rotated_top_conn_pts[:,i,:] = translated_rotated_top_conn_pts[:,i-1,:] + rotated_top_conn_pts[:,i,:]
+        translated_rotated_top_conn_pts = torch.cumsum(rotated_top_conn_pts, dim=1).clone()
         rolled_offset = torch.roll(translated_rotated_top_conn_pts,shifts=1,dims=1)
         rolled_offset[:,0,:] = torch.zeros_like(rolled_offset[:,0,:]) # (num_finger,num_seg,3)
         

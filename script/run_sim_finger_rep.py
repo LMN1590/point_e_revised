@@ -1,10 +1,12 @@
 import torch
 import numpy as np
 import random
+import torch.optim as optim
 
 import yaml
 import os
 from typing import Dict
+from tqdm import tqdm
 
 from config.config_dataclass import GeneralConfig
 
@@ -20,6 +22,7 @@ LOG_PATH_DICT = init_log_dir(
     tensorboard_log_dir=general_config['tensorboard_log_dir'],
     increment_step=1.
 )
+from logger import TENSORBOARD_LOGGER
 shutil.copyfile(config_path, os.path.join(LOG_PATH_DICT['exp_dir'],'config.yaml'))
 
 random.seed(general_config['seed'])
@@ -42,9 +45,21 @@ sim_cls = AltSoftzooSimulation.init_cond(
     softzoo_config=full_softzoo_config,
     sap_config=general_config['sap_config']
 )
-ctrl_tensor = torch.tensor([0.5,0.3,0.3,0.5,0.3,0.5,0.,0.5,1.,0.1])
-ctrl_tensor = ctrl_tensor.repeat(4,4,1)
-ctrl_tensor.requires_grad_(True)
-sim_cls.calculate_gradient(
-    ctrl_tensor
-)
+# ctrl_tensor = torch.tensor([0.5,0.3,0.3,0.5,0.3,0.5,1e-2,0.5,0.9,0.75])
+# ctrl_tensor = ctrl_tensor.repeat(4,4,1)
+raw_tensor = torch.randn(4,4,10)
+
+# raw_tensor = torch.log(ctrl_tensor/(1-ctrl_tensor))
+raw_tensor.requires_grad_(True)
+lr = 5e-2
+optim = optim.Adam([raw_tensor], lr=lr)
+
+for i in tqdm(range(500)):
+    TENSORBOARD_LOGGER.log_scalar('Simulation/Encoding_Norm',raw_tensor.flatten().norm(2))
+    sigmoid_tensor = torch.sigmoid(raw_tensor)
+    optim.zero_grad()
+    sim_cls.calculate_gradient(
+        sigmoid_tensor,i
+    )
+    optim.step()
+    TENSORBOARD_LOGGER.increment()

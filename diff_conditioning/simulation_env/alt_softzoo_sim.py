@@ -145,7 +145,8 @@ class AltSoftzooSimulation(BaseCond):
     # region Gradient Calc Wrapper
     def calculate_gradient(
         self, 
-        ctrl_tensor:torch.Tensor 
+        ctrl_tensor:torch.Tensor,
+        iter:int
     ) -> torch.Tensor:
         # x is shaped (B*2, C, N)
         x = ctrl_tensor.detach().requires_grad_(True)
@@ -156,52 +157,19 @@ class AltSoftzooSimulation(BaseCond):
         with torch.enable_grad():
             ep_reward,reward_log = self.forward_sim(
                 ctrl_tensor,
-                0,0,0
+                iter,0,0
             ) # gripper: cpu(design) -> cuda:0 (env)
             all_loss,grad,grad_name_control = self.backward_sim()
             cur_loss.append(all_loss[-1])
             
             if self.calc_gradient:
-                self.designer.out_cache['geometry'].backward(gradient=grad[None]['self.env.design_space.buffer.geometry'])
-                print(ctrl_tensor.grad)
-                # if not torch.isnan(dense_gripper.grad.sum()):
-                #     x_0_grad = self.sap.calculate_x0_grad(
-            #             dense_gripper = dense_gripper,      # cuda:1
-            #             dense_gradients=dense_gripper.grad, # cuda:1
-            #             surface_gripper=x_0                 # cuda:1  
-            #         )
-            #         pos[i].backward(gradient=x_0_grad.T) # x_0_grad: (N,3), pos[i]: (3,N)
-            #         cur_grad = x.grad[i,:3].clone()
-            #         accum_grad[i,:3] = cur_grad
-            #         # accum_grad[i+B//2,:3] = x.grad[i,:3]
-            #         x.grad.zero_()            
-            #     else:
-            #         # TODO: Fix problem here where nan sometimes occur in simulation
-            #         logging.warning("Warning!!!: Got nan",t)
-
-                        
-        # sap_loss_lst = np.array(sap_loss_lst)
-        # cur_loss = np.array(cur_loss)
-        # self.grad_lst.append(accum_grad)
-        # self.loss_lst.append(cur_loss)      
-        # scaled_gradient = torch.clamp(-accum_grad*self.grad_scale,min = -self.grad_clamp,max=self.grad_clamp)
-        
-        # if self.logging_bool:
-        #     tensorboard_logger.log_scalar("Simulation_SoftZoo/All_Batch_SoftZoo_Loss",cur_loss.mean())
-        #     tensorboard_logger.log_scalar("Simulation_SAP/All_Batch_Loss",sap_loss_lst.mean())
-        #     tensorboard_logger.log_scalar("Simulation_SoftZoo/All_Batch_GradientNorm",scaled_gradient.reshape(-1).norm(2))
-            
-        #     CSVLOGGER.log({
-        #         "phase": "SoftZoo_Overall",
-                
-        #         "sampling_step": t.tolist()[0],
-        #         "local_iter": local_iter,
-                
-        #         "softzoo_mean_loss": cur_loss.mean(),
-        #         "softzoo_scaled_mean_grad_norm":scaled_gradient.reshape(-1).norm(2).item()
-        #     })
-  
-        # return scaled_gradient
+                self.designer.out_cache['geometry'].backward(gradient=grad[None]['self.env.design_space.buffer.geometry'],retain_graph=True)
+                self.designer.out_cache['softness'].backward(gradient=grad[None]['self.env.design_space.buffer.softness'],retain_graph=True)
+                grad_control = [grad[s]['self.env.sim.solver.act_buffer'] for s in self.controller.all_s]
+                self.controller.backward(grad_control)
+                # print(ctrl_tensor.grad.reshape(-1).norm(2))
+            cur_loss = np.array(cur_loss)
+            tensorboard_logger.log_scalar("Simulation_SoftZoo/All_Batch_SoftZoo_Loss",cur_loss.mean())
     # endregion
     
     # region Simulation

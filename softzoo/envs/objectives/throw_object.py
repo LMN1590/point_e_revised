@@ -32,6 +32,11 @@ class ThrowObject(Base):
                 3,
                 F_DTYPE,
                 shape=()
+            ),
+            cur_obj_avg = ti.Vector.field(
+                3,
+                F_DTYPE,
+                shape=()
             )
         )
     
@@ -45,26 +50,17 @@ class ThrowObject(Base):
     def get_reward(self, s):
         self.step_cnt += 1
         if self.config['reward_mode'] == 'per_step':
-            cur_obj_avg = ti.Vector.field(
-                3,
-                F_DTYPE,
-                shape=()
-            )
+            
             s_local = self.env.sim.solver.get_cyclic_s(s)
-            self._compute_x_avg(s_local,cur_obj_avg)
+            self._compute_x_avg(s_local,self.data['cur_obj_avg'])
             forward_dir = ti.Vector(self.config['forward_direction'])
-            rew = ((cur_obj_avg[None] - self.data['object_initial_com'][None]) * forward_dir).sum()
+            rew = ((self.data['cur_obj_avg'][None] - self.data['object_initial_com'][None]) * forward_dir).sum()
         elif self.config['reward_mode'] ==  'final':
             if self.step_cnt >= self.max_episode_steps:
-                cur_obj_avg = ti.Vector.field(
-                    3,
-                    F_DTYPE,
-                    shape=()
-                )
                 s_local = self.env.sim.solver.get_cyclic_s(s)
-                self._compute_x_avg(s_local,cur_obj_avg)
+                self._compute_x_avg(s_local,self.data['cur_obj_avg'])
                 forward_dir = ti.Vector(self.config['forward_direction'])
-                rew = ((cur_obj_avg[None] - self.data['object_initial_com'][None]) * forward_dir).sum()
+                rew = ((self.data['cur_obj_avg'][None] - self.data['object_initial_com'][None]) * forward_dir).sum()
             else:
                 rew = 0.
         return float(rew)

@@ -58,3 +58,10 @@ class CustomFingerRepController(Base):
     def reset(self):
         self.all_s = []
         self.all_act = []
+
+    def backward(self,grad,retain_graph=False):
+        all_act = torch.stack(self.all_act)
+        grad = torch.stack(grad)
+        grad = grad.to(all_act) # make sure they are of the same type
+
+        all_act.backward(gradient=grad, retain_graph=retain_graph)
