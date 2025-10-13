@@ -12,7 +12,7 @@ SIMULATOR:
   use_dynamic_field: False
   checkpoint_cache_device: torch_cpu
   base_active_materials: []
-  max_actuation: 41
+  max_actuation: 161
 ENVIRONMENT:
   objective: throw_object
   objective_config:
@@ -48,7 +48,7 @@ ENVIRONMENT:
   observation_space: [time, com]
   design_space: pbr
   design_space_config:
-    n_actuators: 41
+    n_actuators: 161
     initial_principle_direction: [1., 0., 0.]
     p_rho_lower_bound_mul: 0.1
     base_shape:

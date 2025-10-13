@@ -87,8 +87,8 @@ class EncodedFinger(Base):
         )
     # endregion
     
-    def forward(self,ctrl_tensor:torch.Tensor):
-        occupancy, actuator,is_passive,softness,actuator_directions = self._create_representation_from_tensor(ctrl_tensor)
+    def forward(self,ctrl_tensor:torch.Tensor,end_prob_mask:torch.Tensor):
+        occupancy, actuator,is_passive,softness,actuator_directions = self._create_representation_from_tensor(ctrl_tensor,end_prob_mask)
         active_geometry = occupancy
         passive_geometry = occupancy * self.passive_geometry_mul # NOTE: the same as active
         geometry = torch.where(is_passive==1., passive_geometry, active_geometry)
@@ -107,7 +107,7 @@ class EncodedFinger(Base):
         design = {k: v.clone() for k, v in self.out_cache.items()}
         return design
 
-    def _create_representation_from_tensor(self, ctrl_tensor:torch.Tensor):
+    def _create_representation_from_tensor(self, ctrl_tensor:torch.Tensor,end_prob_mask:torch.Tensor):
         """
         Generate gripper with fingers determined by the ctrl_tensor
         Args:
@@ -118,12 +118,16 @@ class EncodedFinger(Base):
             ]
         """
         ctrl_tensor = ctrl_tensor.to(self.device)
-        num_fingers = ctrl_tensor.shape[0]
-        num_segment_per_finger = ctrl_tensor.shape[1]
+        end_prob_mask = end_prob_mask.to(self.device)
+        processed_end_prob_mask = self._filter_segment_encoding(end_prob_mask)
+        filtered_ctrl_tensor = ctrl_tensor * processed_end_prob_mask[:,:,None]
+        
+        num_fingers = filtered_ctrl_tensor.shape[0]
+        num_segment_per_finger = filtered_ctrl_tensor.shape[1]
         
         complete_pos_tensor = self._create_gripper(
             num_fingers,num_segment_per_finger,
-            ctrl_tensor
+            filtered_ctrl_tensor,processed_end_prob_mask
         ).float()
         
         complete_labels_np = self._create_labels(num_fingers,num_segment_per_finger)
@@ -135,20 +139,36 @@ class EncodedFinger(Base):
                 raise NotImplementedError(f"The number of actuators {unique_lbls.shape[0]} exceed the limit of the simulation {self.env.sim.solver.n_actuators}.")
         
         actuator_directions = self._get_actuator_direction(complete_labels_np,complete_pos_tensor)
-        softness_mul_by_lbl = self._get_sim_softness(ctrl_tensor)
+        softness_mul_by_lbl = self._get_sim_softness(filtered_ctrl_tensor)
         occupancy, actuator,is_passive,softness = self._get_sim_occupancy(complete_pos_tensor,complete_labels_np,unique_lbls,softness_mul_by_lbl)
         
         return occupancy, actuator,is_passive,softness, actuator_directions
-        
+    
+    def _filter_segment_encoding(
+        self,
+        end_prob_mask:torch.Tensor, threshold:float = 0.25
+    ):
+        end_prob_softmax = torch.softmax(end_prob_mask,dim=1)
+        end_prob_cum_sum = torch.cumsum(end_prob_softmax,dim=1)
+        end_prob_threshold = 1.-end_prob_cum_sum
+        end_prob_binaries = torch.where(
+            end_prob_threshold > threshold,
+            torch.ones_like(end_prob_threshold),
+            torch.zeros_like(end_prob_threshold)
+        )
+        end_prob_pseudo_flow = end_prob_binaries - end_prob_threshold.detach() + end_prob_threshold
+        return end_prob_pseudo_flow
+    
     def _create_gripper(
         self,
         num_fingers:int,num_segment_per_finger:int,
-        ctrl_tensor:torch.Tensor,
+        ctrl_tensor:torch.Tensor,end_prob_mask:torch.Tensor
     )->torch.Tensor:
         """
         Generate gripper with fingers determined by the ctrl_tensor
         Args:
             ctrl_tensor (torch.sor): Control points tensor of shape (num_finger, num_segment, D).
+            end_prob_mask (torch.Tensor): The differentiable binary mask to represent the cutoff points. (num_points,num_segment)
         Returns:
             torch.Tensor: Transform the ctrl_tensor into a working gripper with custom fingers.
         """
@@ -182,8 +202,9 @@ class EncodedFinger(Base):
             reversed_finger             # (num_fingers,num_segments*(N+M),3)
         )
         translated_oriented_finger = oriented_finger + fingers_pos[:,None,:]
+        filtered_finger = translated_oriented_finger.reshape(num_fingers,num_segment_per_finger,-1,3)[end_prob_mask.bool()] #(filtered_segment,(N+M),3)
         
-        return torch.concat([self.base_pts,translated_oriented_finger.reshape(-1,3)],dim = 0) # (num_particle,3)
+        return torch.concat([self.base_pts,filtered_finger.reshape(-1,3)],dim = 0) # (num_particle,3)
     
     def _create_labels(self,num_fingers:int, num_segments:int):
         # Scale the connection ends to correspond with new length
