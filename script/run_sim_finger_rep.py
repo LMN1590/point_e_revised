@@ -47,19 +47,23 @@ sim_cls = AltSoftzooSimulation.init_cond(
 )
 # ctrl_tensor = torch.tensor([0.5,0.3,0.3,0.5,0.3,0.5,1e-2,0.5,0.9,0.75])
 # ctrl_tensor = ctrl_tensor.repeat(4,4,1)
-raw_tensor = torch.randn(4,4,10)
+raw_tensor = torch.randn(4,10,10)
+end_prob_mask = torch.randn(4,10)
 
 # raw_tensor = torch.log(ctrl_tensor/(1-ctrl_tensor))
 raw_tensor.requires_grad_(True)
-lr = 5e-2
-optim = optim.Adam([raw_tensor], lr=lr)
+end_prob_mask.requires_grad_(True)
+lr = 1e-1
+optim = optim.Adam([raw_tensor,end_prob_mask], lr=lr)
 
 for i in tqdm(range(500)):
     TENSORBOARD_LOGGER.log_scalar('Simulation/Encoding_Norm',raw_tensor.flatten().norm(2))
     sigmoid_tensor = torch.sigmoid(raw_tensor)
     optim.zero_grad()
     sim_cls.calculate_gradient(
-        sigmoid_tensor,i
+        sigmoid_tensor,
+        end_prob_mask,
+        i
     )
     optim.step()
     TENSORBOARD_LOGGER.increment()

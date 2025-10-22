@@ -146,10 +146,11 @@ class AltSoftzooSimulation(BaseCond):
     def calculate_gradient(
         self, 
         ctrl_tensor:torch.Tensor,
+        end_prob_mask:torch.Tensor,
         iter:int
     ) -> torch.Tensor:
         # x is shaped (B*2, C, N)
-        x = ctrl_tensor.detach().requires_grad_(True)
+        x = ctrl_tensor
         B = x.shape[0]
         cur_loss = []
         sap_loss_lst = []
@@ -157,6 +158,7 @@ class AltSoftzooSimulation(BaseCond):
         with torch.enable_grad():
             ep_reward,reward_log = self.forward_sim(
                 ctrl_tensor,
+                end_prob_mask,
                 iter,0,0
             ) # gripper: cpu(design) -> cuda:0 (env)
             all_loss,grad,grad_name_control = self.backward_sim()
@@ -175,13 +177,13 @@ class AltSoftzooSimulation(BaseCond):
     # region Simulation
     def forward_sim(
         self,
-        ctrl_tensor:torch.Tensor,
+        ctrl_tensor:torch.Tensor, end_prob_mask:torch.Tensor,
         batch_idx:int,
         sampling_step:int,
         local_iter:int
     ):
         self.designer.reset()
-        designer_out = self.designer(ctrl_tensor)
+        designer_out = self.designer(ctrl_tensor,end_prob_mask)
         design = dict()
         for design_type in self.config.set_design_types:
             if design_type == 'actuator_direction': assert getattr(self.designer,'has_actuator_direction',False)

@@ -120,6 +120,7 @@ class EncodedFinger(Base):
         ctrl_tensor = ctrl_tensor.to(self.device)
         end_prob_mask = end_prob_mask.to(self.device)
         processed_end_prob_mask = self._filter_segment_encoding(end_prob_mask)
+        print(processed_end_prob_mask.sum(dim=1))
         filtered_ctrl_tensor = ctrl_tensor * processed_end_prob_mask[:,:,None]
         
         num_fingers = filtered_ctrl_tensor.shape[0]
@@ -130,8 +131,7 @@ class EncodedFinger(Base):
             filtered_ctrl_tensor,processed_end_prob_mask
         ).float()
         
-        complete_labels_np = self._create_labels(num_fingers,num_segment_per_finger)
-        # visualize_point_cloud(complete_pos_tensor,complete_labels_np)
+        complete_labels_np = self._create_labels(processed_end_prob_mask)
         unique_lbls = np.unique(complete_labels_np)
         if not self.env.sim.solver.n_actuators == unique_lbls.shape[0]:
             logging.warning(f"Warning!!!!: \n The number of actuators {self.env.sim.solver.n_actuators} must be equal to the number of generated labels {unique_lbls.shape[0]}. Probllem in configuration files")
@@ -206,7 +206,7 @@ class EncodedFinger(Base):
         
         return torch.concat([self.base_pts,filtered_finger.reshape(-1,3)],dim = 0) # (num_particle,3)
     
-    def _create_labels(self,num_fingers:int, num_segments:int):
+    def _create_labels(self,end_probs_binary:torch.Tensor):
         # Scale the connection ends to correspond with new length
         top_conn_ends = self.conn_ends[self.conn_ends[:,1]>0] # (M1,3)
         bottom_conn_ends = self.conn_ends[self.conn_ends[:,1]<0] # (M2,3)
@@ -219,8 +219,10 @@ class EncodedFinger(Base):
         segment_lbls = torch.ones(full_segment_pts.shape[0],dtype=torch.int8)    #(N+M,)
         segment_lbls[full_segment_pts[:,0]>0]=2                 #(N+M,)
         
-        repeated_segment = segment_lbls.repeat(num_fingers,num_segments,1)    # (num_finger,num_segment,N+M)
-        offsets = (torch.arange(num_fingers).view(num_fingers, 1) * num_segments + torch.arange(num_segments)).view(num_fingers, num_segments, 1) * 2
+        total_segments = end_probs_binary.sum().item()
+        
+        repeated_segment = segment_lbls.repeat(int(total_segments),1)    # (total_segment,N+M)
+        offsets = torch.arange(total_segments)[:,None].int() * 2          # (total_segment,N+M)
         offseted_segment_lbl = repeated_segment + offsets                   # (num_finger,num_segment,N+M)
         
         return np.concatenate([self.base_lbls,offseted_segment_lbl.flatten().detach().cpu().numpy()],axis=-1)
