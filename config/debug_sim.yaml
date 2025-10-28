@@ -1,4 +1,4 @@
-exp_name: cube_size_check #random_finger_with_masking_rep_1e-1_iter500_restricted_orientation_pi8_fixed_roll
+exp_name: debug_simulation_scenario
 seed: &seed 310
 out_dir: ./logs/
 tensorboard_log_dir: runs/
@@ -32,8 +32,10 @@ preload_emb:
     path: asset/embeddings/upsample_noise_cone.npy
 
 softzoo_config:
+
+  eval: True
   out_dir: null # Placeholder, need to be set in run.py
-  fixed_v: gripping_5_HTP.json
+  # fixed_v: null
   env_config_file: modded_sim.yaml
   save_every_iter: *log_freq
   render_every_iter: *log_freq
@@ -54,14 +56,12 @@ softzoo_config:
   device_memory_fraction: 0.7
 
   optimize_designer: True
-  optimize_design_types: ['geometry','softness']
+  optimize_design_types: ['geometry']
   designer_lr: 0.1
-
-  optimize_controller: True
   gen_pointe_bounding_box:
-    max: [1.25,0.25,1.25]
+    max: [0.5,0.5,0.5]
     # mean: [0.,0.,0.]
-    min: [-1.25,-2.5,-1.25]
+    min: [-0.5,-0.5,-0.5]
 
   design_device: cpu
   obj_initial_pos: [0,0,0]

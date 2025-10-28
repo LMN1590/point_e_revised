@@ -224,16 +224,18 @@ class AltSoftzooSimulation(BaseCond):
         fixed_v = [0.,0.,0.]
         cur_v_idx = 0
         
+        # self.env.sim.solver.set_gravity([0.,1.,0.])
+        
         pbar = trange(0,self.config.n_frames,desc="Simulating",unit=' frames',position=2,leave=False)
         reward_log = []
         for frame in pbar:
             if frame >= velocities_by_frame[cur_v_idx][0]:
                 fixed_v = velocities_by_frame[cur_v_idx][1]
                 cur_v_idx +=1
-            # if frame == 0:
-            #     env.sim.solver.set_gravity((0.,-9.81,0.))
-            # elif frame == 125:
-            #     env.sim.solver.set_gravity((0.,9.81,0.))
+            if frame == 0:
+                self.env.sim.solver.set_gravity((0.,20.,0.))
+            elif frame == 90:
+                self.env.sim.solver.set_gravity((0.,0.,0.))
             
             current_s = self.env.sim.solver.current_s
             current_s_local = self.env.sim.solver.get_cyclic_s(current_s)

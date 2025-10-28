@@ -11,7 +11,7 @@ from tqdm import tqdm
 from config.config_dataclass import GeneralConfig
 
 import shutil
-config_path = 'config/debug_finger_rep.yaml'
+config_path = 'config/debug_sim.yaml'
 with open(config_path) as f:
     general_config:GeneralConfig = yaml.safe_load(f)
 
@@ -45,25 +45,25 @@ sim_cls = AltSoftzooSimulation.init_cond(
     softzoo_config=full_softzoo_config,
     sap_config=general_config['sap_config']
 )
-# ctrl_tensor = torch.tensor([0.5,0.3,0.3,0.5,0.3,0.5,1e-2,0.5,0.9,0.75])
-# ctrl_tensor = ctrl_tensor.repeat(4,4,1)
-raw_tensor = torch.randn(4,10,10)
-end_prob_mask = torch.randn(4,10)
+ctrl_tensor = torch.tensor([0.6,0.75,0.75,0.75,0.75,0.5,0.5,0.5,1.0,1.0])
+ctrl_tensor = ctrl_tensor.repeat(4,5,1)
+# raw_tensor = torch.randn(4,10,10)
+end_prob_mask = torch.ones(4,5)
 
-# raw_tensor = torch.log(ctrl_tensor/(1-ctrl_tensor))
+raw_tensor = torch.log(ctrl_tensor/(1-ctrl_tensor))
 raw_tensor.requires_grad_(True)
 end_prob_mask.requires_grad_(True)
 lr = 1e-1
-optim = optim.Adam([raw_tensor,end_prob_mask], lr=lr)
+# optim = optim.Adam([raw_tensor,end_prob_mask], lr=lr)
 
-for i in tqdm(range(500)):
-    TENSORBOARD_LOGGER.log_scalar('Simulation/Encoding_Norm',raw_tensor.flatten().norm(2))
+for i in tqdm(range(1)):
+    # TENSORBOARD_LOGGER.log_scalar('Simulation/Encoding_Norm',raw_tensor.flatten().norm(2))
     sigmoid_tensor = torch.sigmoid(raw_tensor)
-    optim.zero_grad()
-    sim_cls.calculate_gradient(
+    # optim.zero_grad()
+    sim_cls.forward_sim(
         sigmoid_tensor,
         end_prob_mask,
-        i
+        i,-1,-1
     )
-    optim.step()
-    TENSORBOARD_LOGGER.increment()
+    # optim.step()
+    # TENSORBOARD_LOGGER.increment()
