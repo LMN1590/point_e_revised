@@ -56,7 +56,7 @@ end_prob_mask.requires_grad_(True)
 lr = 1e-1
 optim = optim.Adam([raw_tensor,end_prob_mask], lr=lr)
 
-for i in tqdm(range(1)):
+for i in tqdm(range(10)):
     TENSORBOARD_LOGGER.log_scalar('Simulation/Encoding_Norm',raw_tensor.flatten().norm(2))
     sigmoid_tensor = torch.sigmoid(raw_tensor)
     optim.zero_grad()

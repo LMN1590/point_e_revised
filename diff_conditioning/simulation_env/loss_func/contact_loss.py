@@ -16,55 +16,66 @@ class ContactLoss(Loss):
     '''
     def __init__(
         self,parent:'LossSet', env:'BaseEnv',
-        obj_particle_id:int
+        obj_particle_id:int, surface_threshold:float=0.02
     ):
         super().__init__(parent, env)
         self.obj_particle_id = obj_particle_id
+        self.surface_threshold = surface_threshold
         self.data = dict(
             loss=ti.field(dtype=F_DTYPE, shape=(self.env.sim.solver.max_substeps), needs_grad=True),
-            n_robot_particles = ti.field(
+            surface_pts = ti.field(
                 dtype=F_DTYPE,
                 shape=(),
                 needs_grad=True
-            )
+            ),
+            
+            robot_min_dist = ti.field(dtype=F_DTYPE, shape=(self.env.sim.solver.n_particles[None]), needs_grad=True)
         )
 
     def reset(self):
         super().reset()
+        self.data['robot_min_dist'].fill(1e4)
     
     def compute_final_step_loss(self, s):
-        self._compute_n_robot_particles()
         s_local = self.get_s_local(s)
+        self._compute_min_dist(s, s_local)
         self._compute_loss(s, s_local)
 
     def compute_final_step_grad(self, s):
         s_local = self.get_s_local(s)
         self._compute_loss.grad(s, s_local)
+        self._compute_min_dist.grad(s, s_local)
         
     @ti.func
     def _is_object(self,id):
         return id == self.obj_particle_id
     
     @ti.kernel
-    def _compute_loss(self, s:I_DTYPE, s_local:I_DTYPE):
-        total_dist = 0.0
-        n_particles = self.env.sim.solver.n_particles[None]
-        
-        for p_robot in range(n_particles):
-            id_robot = self.env.sim.solver.particle_ids[p_robot]
-            is_robot = self.env.design_space.is_robot(id_robot) and (self.env.sim.solver.p_rho[p_robot] > 0)
+    def _compute_min_dist(self,s:I_DTYPE,s_local:I_DTYPE):
+        for robot_id,obj_id in ti.ndrange(self.env.sim.solver.n_particles[None],self.env.sim.solver.n_particles[None]):
+            id1 = self.env.sim.solver.particle_ids[robot_id]
+            id2 = self.env.sim.solver.particle_ids[obj_id]
+            is_robot = self.env.design_space.is_robot(id1) and (self.env.sim.solver.p_rho[robot_id] > 0)
+            is_object = self._is_object(id2) and (self.env.sim.solver.p_rho[obj_id] > 0)
+            if is_robot and is_object:
+                pos1 = self.env.sim.solver.x[s_local,robot_id]
+                pos2 = self.env.sim.solver.x[s_local,obj_id]
+                dist = (pos1 - pos2).norm()
+                self.data['robot_min_dist'][robot_id] = ti.atomic_min(self.data['robot_min_dist'][robot_id], dist)
+    
+    @ti.kernel
+    def _compute_loss(self,s:I_DTYPE, s_local:I_DTYPE):
+        for p in range(self.env.sim.solver.n_particles[None]):
+            id = self.env.sim.solver.particle_ids[p]
+            is_robot = self.env.design_space.is_robot(id) and (self.env.sim.solver.p_rho[p] > 0)
             if is_robot:
-                min_dist = ti.cast(1e5,F_DTYPE)
-                pos_r = self.env.sim.solver.x[s_local, p_robot]
-                for p_obj in range(n_particles):
-                    id_obj = self.env.sim.solver.particle_ids[p_obj]
-                    is_object = self._is_object(id_obj) and (self.env.sim.solver.p_rho[p_obj] > 0)
-                    if is_object:
-                        pos_o = self.env.sim.solver.x[s_local, p_obj]
-                        dist = (pos_r - pos_o).norm()
-                        min_dist = ti.min(min_dist, dist)
-                total_dist += min_dist / (self.data['n_robot_particles'])
-
-        self.data['loss'][s] = total_dist
+                dist = self.data['robot_min_dist'][p]
+                if dist<self.surface_threshold: self.data['surface_pts'][None] += 1.0
+        for p in range(self.env.sim.solver.n_particles[None]):
+            id = self.env.sim.solver.particle_ids[p]
+            is_robot = self.env.design_space.is_robot(id) and (self.env.sim.solver.p_rho[p] > 0)
+            if is_robot:
+                dist = self.data['robot_min_dist'][p]
+                if dist<self.surface_threshold: self.data['loss'][s] += dist/self.data['surface_pts'][None]
         
         

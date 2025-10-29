@@ -436,6 +436,9 @@ class FullConfig(BaseControllerConfig,DesignConfig):
     
     # Gripping Object Loss
     obj_initial_pos:List[float]
+    
+    # Contact Loss
+    surface_threshold: float # 0.02
     # Utils
     device_memory_fraction:float
     design_device: str

@@ -40,11 +40,13 @@ class ObjectBalancedLoss(Loss):
         self._compute_n_robot_particles()
         self._compute_n_object_particles()
         s_local = self.get_s_local(s)
+        self._compute_com(s, s_local)
         self._compute_loss(s, s_local)
 
     def compute_final_step_grad(self, s):
         s_local = self.get_s_local(s)
         self._compute_loss.grad(s, s_local)
+        self._compute_com.grad(s, s_local)
         
     @ti.func
     def _is_object(self,id):
@@ -58,9 +60,8 @@ class ObjectBalancedLoss(Loss):
                 self.data['n_object_particles'][None] += ti.cast(1, F_DTYPE)
                 
     @ti.kernel
-    def _compute_loss(self, s:I_DTYPE, s_local:I_DTYPE):
-        n_particles = self.env.sim.solver.n_particles[None]
-        for p in range(n_particles):
+    def _compute_com(self, s:I_DTYPE, s_local:I_DTYPE):
+        for p in range(self.env.sim.solver.n_particles[None]):
             id = self.env.sim.solver.particle_ids[p]
             is_robot = self.env.design_space.is_robot(id) and (self.env.sim.solver.p_rho[p] > 0)
             is_object = self._is_object(id) and (self.env.sim.solver.p_rho[p] > 0)
@@ -68,6 +69,8 @@ class ObjectBalancedLoss(Loss):
                 self.data['robot_com'][None] += self.env.sim.solver.x[s_local, p] / (self.data['n_robot_particles'][None])
             elif is_object:
                 self.data['object_com'][None] += self.env.sim.solver.x[s_local, p] / (self.data['n_object_particles'][None])
-        
+                
+    @ti.kernel
+    def _compute_loss(self, s:I_DTYPE, s_local:I_DTYPE):
         self.data['loss'][s] = (self.data['robot_com'][None] - self.data['object_com'][None]).norm()
             

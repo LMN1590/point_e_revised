@@ -33,7 +33,7 @@ preload_emb:
 
 softzoo_config:
 
-  eval: True
+  # eval: True
   out_dir: null # Placeholder, need to be set in run.py
   # fixed_v: null
   env_config_file: modded_sim.yaml
@@ -46,9 +46,11 @@ softzoo_config:
   active: True
   action_v_strength: 0.35
 
-  loss_types: [ContactLoss,ObjectBalancedLoss]
+  loss_types: [ObjectBalancedLoss]
+  loss_coefs: [1.0]
   obj_x_mul: [0.,1.,0.]
   obj_particle_id: 2
+  surface_threshold: 0.02
 
   seed: *seed  # Placeholder, do not use
   torch_seed: *seed  # Placeholder, do not use
@@ -56,8 +58,9 @@ softzoo_config:
   device_memory_fraction: 0.7
 
   optimize_designer: True
-  optimize_design_types: ['geometry']
+  optimize_design_types: ['geometry','softness']
   designer_lr: 0.1
+  optimize_controller: True
   gen_pointe_bounding_box:
     max: [1.05,0.1,1.05]
     # mean: [0.,0.,0.]

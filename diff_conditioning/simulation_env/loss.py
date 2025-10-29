@@ -35,7 +35,7 @@ def make_loss(args:FullConfig, env:BaseEnv, torch_device:str):
         elif loss_type == 'ObjectBalancedLoss':
             loss_config = dict(obj_particle_id = args.obj_particle_id)
         elif loss_type == 'ContactLoss':
-            loss_config = dict(obj_particle_id = args.obj_particle_id)
+            loss_config = dict(obj_particle_id = args.obj_particle_id,surface_threshold=args.surface_threshold)
         else:
             raise ValueError(f'Unrecognized loss type {loss_type}')
         loss_configs[loss_type] = loss_config
