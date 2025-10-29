@@ -46,7 +46,7 @@ softzoo_config:
   active: True
   action_v_strength: 0.35
 
-  loss_types: [ThrowingObjectLoss]
+  loss_types: [ContactLoss,ObjectBalancedLoss]
   obj_x_mul: [0.,1.,0.]
   obj_particle_id: 2
 

@@ -14,8 +14,12 @@ from .throwing_obj_loss import ThrowingObjectLoss
 from .trajectory_following_loss import TrajectoryFollowingLoss
 from .velocity_following_loss import VelocityFollowingLoss
 from .waypoint_following_loss import WaypointFollowingLoss
+
 from .gripping_obj_loss import GrippingObjectLoss
 from .gripping_obj_loss_old import GrippingObjectLossOld
+
+from .object_balanced_loss import ObjectBalancedLoss
+from .contact_loss import ContactLoss
 
 if TYPE_CHECKING:
     from softzoo.envs.base_env import BaseEnv

@@ -54,16 +54,16 @@ raw_tensor = torch.log(ctrl_tensor/(1-ctrl_tensor))
 raw_tensor.requires_grad_(True)
 end_prob_mask.requires_grad_(True)
 lr = 1e-1
-# optim = optim.Adam([raw_tensor,end_prob_mask], lr=lr)
+optim = optim.Adam([raw_tensor,end_prob_mask], lr=lr)
 
 for i in tqdm(range(1)):
-    # TENSORBOARD_LOGGER.log_scalar('Simulation/Encoding_Norm',raw_tensor.flatten().norm(2))
+    TENSORBOARD_LOGGER.log_scalar('Simulation/Encoding_Norm',raw_tensor.flatten().norm(2))
     sigmoid_tensor = torch.sigmoid(raw_tensor)
-    # optim.zero_grad()
-    sim_cls.forward_sim(
+    optim.zero_grad()
+    sim_cls.calculate_gradient(
         sigmoid_tensor,
         end_prob_mask,
-        i,-1,-1
+        i
     )
-    # optim.step()
-    # TENSORBOARD_LOGGER.increment()
+    optim.step()
+    TENSORBOARD_LOGGER.increment()
