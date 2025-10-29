@@ -6,47 +6,47 @@ pcd_path = "diff_conditioning/simulation_env/asset/complete_segment_h05_r01.pcd"
 
 # Load the point cloud
 pcd = o3d.io.read_point_cloud(pcd_path)
+height = 0.5
+radius = 0.1
+cylinder_scale = 0.3
+radius_scale = 1.
 
 points = np.asarray(pcd.points)
 colors = np.asarray(pcd.colors)
 
-# Define color thresholds (for (0,0,0) cylinder)
-# Small tolerance because PCD colors may not be exactly 0 due to float conversion
-tolerance = 1e-3
-is_cylinder = np.all(colors < tolerance, axis=1)
-is_connection = ~is_cylinder  # everything else
 
-# Separate point clouds
-pcd_cylinder = pcd.select_by_index(np.where(is_cylinder)[0])
-pcd_connection = pcd.select_by_index(np.where(is_connection)[0])
+cylinder_mask = np.all(colors==[0,0,0],axis=1)
+cylinder_pts = points[cylinder_mask] 
+conn_ends = points[~cylinder_mask]
+print(cylinder_pts.max(0), cylinder_pts.min(0))
+print(conn_ends.max(0), conn_ends.min(0))
+print("---------------------------")
 
-# Further split connections by Y coordinate
-points_connection = np.asarray(pcd_connection.points)
-upper_idx = np.where(points_connection[:, 1] > 0)[0]
-lower_idx = np.where(points_connection[:, 1] <= 0)[0]
+cylinder_pts = points[cylinder_mask] * radius_scale * [1.,cylinder_scale/radius_scale,1.]
+conn_ends = points[~cylinder_mask] * radius_scale   
+print(cylinder_pts.max(0), cylinder_pts.min(0))
+print(conn_ends.max(0), conn_ends.min(0))
+print("---------------------------")
 
-pcd_upper = pcd_connection.select_by_index(upper_idx)
-pcd_lower = pcd_connection.select_by_index(lower_idx)
+diff_height = height/2 * (radius_scale-cylinder_scale)
+print(diff_height)
+top_conn_ends = conn_ends[conn_ends[:,1]>0] - [0.,diff_height,0.]
+bottom_conn_ends = conn_ends[conn_ends[:,1]<0] + [0.,diff_height,0.]
+print(cylinder_pts.max(0), cylinder_pts.min(0))
+print(top_conn_ends.max(0), top_conn_ends.min(0))
+print(bottom_conn_ends.max(0), bottom_conn_ends.min(0))
+print("---------------------------")
 
-# Compute bounding boxes
-bbox_cylinder = pcd_cylinder.get_axis_aligned_bounding_box()
-bbox_upper = pcd_upper.get_axis_aligned_bounding_box()
-bbox_lower = pcd_lower.get_axis_aligned_bounding_box()
+cylinder_pcd = o3d.geometry.PointCloud()
+cylinder_pcd.points = o3d.utility.Vector3dVector(cylinder_pts)
+cylinder_pcd.paint_uniform_color([0, 0, 0])  # keep black
 
-# Color bounding boxes for visualization
-bbox_cylinder.color = (0, 0, 0)      # black
-bbox_upper.color = (1, 0, 0)         # red
-bbox_lower.color = (0, 0, 1)         # blue
+conn_pcd = o3d.geometry.PointCloud()
+conn_pcd.points = o3d.utility.Vector3dVector(np.vstack([top_conn_ends, bottom_conn_ends]))
+conn_pcd.paint_uniform_color([1, 0, 0])  # for visualization, make it red
 
-# Print bounding box coordinates
-print("Cylinder bbox min:", bbox_cylinder.get_min_bound(), "max:", bbox_cylinder.get_max_bound())
-print("Upper connection bbox min:", bbox_upper.get_min_bound(), "max:", bbox_upper.get_max_bound())
-print("Lower connection bbox min:", bbox_lower.get_min_bound(), "max:", bbox_lower.get_max_bound())
+# --- (Optional) Merge and save combined version ---
+merged_pcd = cylinder_pcd + conn_pcd
+o3d.io.write_point_cloud(f"complete_segment_h{str(height*cylinder_scale).replace('.','')}_r{str(radius*radius_scale).replace('.','')}.pcd", merged_pcd)
 
-# Visualize everything
-o3d.visualization.draw_geometries(
-    [pcd, bbox_cylinder, bbox_upper, bbox_lower],
-    window_name="Cylinder + Connections Bounding Boxes",
-    width=1000,
-    height=800,
-)
+o3d.visualization.draw_geometries([merged_pcd])

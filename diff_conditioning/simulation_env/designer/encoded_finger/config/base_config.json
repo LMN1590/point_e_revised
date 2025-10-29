@@ -1,19 +1,19 @@
 {
     "fixed_base_config":{
         "fixed_base_path": "diff_conditioning/simulation_env/asset/fixed_base_big.pcd",
-        "finger_radius": 0.75
+        "finger_radius": 0.6
     },
     
     "segment_config":{
-        "complete_segment_path": "diff_conditioning/simulation_env/asset/complete_segment_h04_r008.pcd",
+        "complete_segment_path": "diff_conditioning/simulation_env/asset/complete_segment_h015_r01.pcd",
         
         "cylinder_color": [0.0,0.0,0.0],
-        "base_length": 0.4,
-        "radius": 0.08,
+        "base_length": 0.15,
+        "radius": 0.1,
 
         "finger_encoded_dim": 10,
 
-        "spline_range": [0.25,4.0],
+        "spline_range": [0.25,2.0],
         "lengthen_range": [0.1,1.0],
         "rotation_range":[
             [-0.3925,0.3925],

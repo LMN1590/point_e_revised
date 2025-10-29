@@ -41,7 +41,7 @@ class CustomFingerRepController(Base):
         act_scale[:full_strength.shape[0]] += full_strength
         act = torch.zeros((self.n_actuators,), requires_grad=False) # (1+num_finger*num_segment*2)
         if self.active:
-            if s//16<90:
+            if s//16<25:
                 act[::2] = -1.0
                 act[1::2] = 1.0
             else:   

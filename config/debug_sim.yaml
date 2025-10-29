@@ -40,7 +40,7 @@ softzoo_config:
   save_every_iter: *log_freq
   render_every_iter: *log_freq
   n_iters: 301
-  n_frames: 200
+  n_frames: 75
 
   controller_type: all_on
   active: True
@@ -59,9 +59,9 @@ softzoo_config:
   optimize_design_types: ['geometry']
   designer_lr: 0.1
   gen_pointe_bounding_box:
-    max: [0.5,0.5,0.5]
+    max: [1.05,0.1,1.05]
     # mean: [0.,0.,0.]
-    min: [-0.5,-0.5,-0.5]
+    min: [-1.05,-3.,-1.05]
 
   design_device: cpu
   obj_initial_pos: [0,0,0]

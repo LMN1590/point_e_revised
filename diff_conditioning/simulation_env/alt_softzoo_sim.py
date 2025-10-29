@@ -232,11 +232,9 @@ class AltSoftzooSimulation(BaseCond):
             if frame >= velocities_by_frame[cur_v_idx][0]:
                 fixed_v = velocities_by_frame[cur_v_idx][1]
                 cur_v_idx +=1
-            if frame == 0:
-                self.env.sim.solver.set_gravity((0.,20.,0.))
-            elif frame == 90:
-                self.env.sim.solver.set_gravity((0.,0.,0.))
-            
+            if frame == 10:self.env.sim.solver.set_gravity((0.,15.,0.))
+            elif frame == 25:self.env.sim.solver.set_gravity((0.,0.,0.))
+
             current_s = self.env.sim.solver.current_s
             current_s_local = self.env.sim.solver.get_cyclic_s(current_s)
             act = self.controller(current_s, obs,ctrl_tensor)

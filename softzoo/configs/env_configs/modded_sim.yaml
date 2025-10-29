@@ -12,7 +12,7 @@ SIMULATOR:
   use_dynamic_field: False
   checkpoint_cache_device: torch_cpu
   base_active_materials: []
-  max_actuation: 41
+  max_actuation: 81
 ENVIRONMENT:
   objective: move_forward
   objective_config:
@@ -35,7 +35,7 @@ ENVIRONMENT:
       scale: [0.4,0.4,0.4]
       initial_position: [0.55, 0.0, 0.4]
       initial_rotation: [1., 0., 0.0, 0.0] # w,x,y,z
-      initial_velocity: [0., 0., 0.]
+      initial_velocity: [0., 1.25, 0.]
       sample_density: 16
       material: FakeRigid
       particle_id: 2
@@ -47,14 +47,14 @@ ENVIRONMENT:
   observation_space: [time, com]
   design_space: pbr
   design_space_config:
-    n_actuators: 41
+    n_actuators: 81
     initial_principle_direction: [1., 0., 0.]
     p_rho_lower_bound_mul: 0.1
     base_shape:
       type: Primitive.Box
-      size: [0.08, 0.08, 0.08]
-      sample_density: 64
-      initial_position: [0.55, 0.185, 0.4]
+      size: [0.1, 0.1, 0.1]
+      sample_density: 32
+      initial_position: [0.55, 0.225, 0.4]
       initial_velocity: [0., 0., 0.]
       material: DiffAquaMuscle
       particle_id: 3 # used as robot id
@@ -77,7 +77,7 @@ RENDERER:
   GGUI:
     ambient_light: [0.5, 0.5, 0.5]
     camera_lookat: [0.5, 0.1, 0.5] # horizontal look
-    camera_position: [0.5, 0.2, 0.1]
+    camera_position: [0.5, 0.25, 0.05]
     particle_radius: 0.002
     particle_coloring_mode: actuation
     ground_surface_cmap: textures/ground.png

@@ -22,10 +22,11 @@ class AllOn(Base):
 
     def forward(self, s, inp):
         inp = inp['time'].float()
+        # print(s,inp,s//16)
         
         act = torch.zeros((self.n_actuators,), requires_grad=False)
         if self.active:
-            if s//16<90:
+            if s//16<30:
                 act[::2] = -1.0
                 act[1::2] = 1.0
             else:   

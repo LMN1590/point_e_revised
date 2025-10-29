@@ -133,6 +133,8 @@ class EncodedFinger(Base):
         ).float()
         
         complete_labels_np = self._create_labels(processed_end_prob_mask)
+        # visualize_point_cloud(complete_pos_tensor,complete_labels_np)
+        # print(complete_pos_tensor.max(0),complete_pos_tensor.min(0))
         unique_lbls = np.unique(complete_labels_np)
         if not self.env.sim.solver.n_actuators == unique_lbls.shape[0]:
             logging.warning(f"Warning!!!!: \n The number of actuators {self.env.sim.solver.n_actuators} must be equal to the number of generated labels {unique_lbls.shape[0]}. Probllem in configuration files")
@@ -197,6 +199,8 @@ class EncodedFinger(Base):
         z_axis_pos = torch.sin(torch.pi - angles) * self.base_config['fixed_base_config']['finger_radius']
         y_axis_pos = torch.zeros_like(x_axis_pos)
         fingers_pos = torch.stack([x_axis_pos, y_axis_pos, z_axis_pos], dim=1)  # [num_finger,3]
+        # print(fingers_pos)
+        # print(self.base_pts.max(0),self.base_pts.min(0))
         
         oriented_finger = quaternion_apply(
             quats_angles[:,None,:],     # (num_fingers,1,4)
