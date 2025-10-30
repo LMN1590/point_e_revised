@@ -120,7 +120,7 @@ class EncodedFinger(Base):
         ctrl_tensor = ctrl_tensor.to(self.device)
         end_prob_mask = end_prob_mask.to(self.device)
         processed_end_prob_mask = self._filter_segment_encoding(end_prob_mask)
-        processed_end_prob_mask = torch.ones_like(processed_end_prob_mask)
+        # processed_end_prob_mask = torch.ones_like(processed_end_prob_mask)
         print(processed_end_prob_mask.sum(dim=1))
         filtered_ctrl_tensor = ctrl_tensor * processed_end_prob_mask[:,:,None]
         

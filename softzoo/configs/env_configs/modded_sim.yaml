@@ -14,11 +14,12 @@ SIMULATOR:
   base_active_materials: []
   max_actuation: 81
 ENVIRONMENT:
-  objective: move_forward
+  objective: throw_object
   objective_config:
-    reward_mode: per_step_velocity
-    forward_direction: [1., 0., 0.]
-    max_episode_steps: 400
+    reward_mode: final
+    forward_direction: [0., 1., 0.]
+    max_episode_steps: 75
+    obj_particles_id: 2
   ITEMS:
     # Terrain
     - type: Static.BoundingBox # World boundary

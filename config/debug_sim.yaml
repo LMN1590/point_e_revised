@@ -1,4 +1,4 @@
-exp_name: debug_simulation_scenario
+exp_name: test_smoother_loss
 seed: &seed 310
 out_dir: ./logs/
 tensorboard_log_dir: runs/
@@ -46,8 +46,8 @@ softzoo_config:
   active: True
   action_v_strength: 0.35
 
-  loss_types: [ObjectBalancedLoss]
-  loss_coefs: [1.0]
+  loss_types: [ObjectBalancedLoss,ContactLoss]
+  loss_coefs: [1.0,1.0]
   obj_x_mul: [0.,1.,0.]
   obj_particle_id: 2
   surface_threshold: 0.02
