@@ -58,10 +58,9 @@ optim = optim.Adam([raw_tensor,end_prob_mask], lr=lr)
 
 for i in tqdm(range(100)):
     TENSORBOARD_LOGGER.log_scalar('Simulation/Encoding_Norm',raw_tensor.flatten().norm(2))
-    sigmoid_tensor = torch.sigmoid(raw_tensor)
     optim.zero_grad()
     sim_cls.calculate_gradient(
-        sigmoid_tensor,
+        raw_tensor,
         end_prob_mask,
         i
     )
