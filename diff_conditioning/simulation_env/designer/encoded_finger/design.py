@@ -13,6 +13,7 @@ import logging
 from ..base import Base
 from .base_config import Config
 from ..utils import calibrate_translate_pts,rotate_y,visualize_point_cloud
+from .design_loss_func import finger_penetration_loss
 
 from softzoo.utils.general_utils import extract_part_pca_inner,row_permutation,extract_part_pca
 from softzoo.utils.computation_utils import directions_to_spherical
@@ -30,6 +31,8 @@ class EncodedFinger(Base):
         bounding_box:Optional[Dict[Literal['max','mean','min'],List[float]]] = None,
     ):
         super(EncodedFinger,self).__init__(env)
+        
+        self.design_loss = torch.zeros(1,device=device)
         
         self.passive_geometry_mul = passive_geometry_mul
         self.passive_softness_mul = passive_softness_mul
@@ -105,7 +108,7 @@ class EncodedFinger(Base):
         
         # NOTE: must use clone here otherwise tensor may be modified in-place in sim
         design = {k: v.clone() for k, v in self.out_cache.items()}
-        return design
+        return design, self.design_loss
 
     def _create_representation_from_tensor(self, ctrl_tensor:torch.Tensor,end_prob_mask:torch.Tensor):
         """
@@ -206,7 +209,8 @@ class EncodedFinger(Base):
             quats_angles[:,None,:],     # (num_fingers,1,4)
             reversed_finger             # (num_fingers,num_segments*(N+M),3)
         )
-        translated_oriented_finger = oriented_finger + fingers_pos[:,None,:]
+        translated_oriented_finger = oriented_finger + fingers_pos[:,None,:] # (num_fingers,num_segments*(N+M),3)
+        self.design_loss += finger_penetration_loss(translated_oriented_finger)
         filtered_finger = translated_oriented_finger.reshape(num_fingers,num_segment_per_finger,-1,3)[end_prob_mask.bool()] #(filtered_segment,(N+M),3)
         
         return torch.concat([self.base_pts,filtered_finger.reshape(-1,3)],dim = 0) # (num_particle,3)

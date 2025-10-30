@@ -393,6 +393,7 @@ class FullConfig(BaseControllerConfig,DesignConfig):
     env_config_file: str # 'fixed_plain.yaml'
     objective_reward_mode: Optional[str] # None
     dump_rendering_data: bool # False
+    custom_gravity: bool
 
     # Optimization
     n_iters: int # 1

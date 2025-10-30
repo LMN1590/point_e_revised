@@ -76,6 +76,6 @@ class ContactLoss(Loss):
             is_robot = self.env.design_space.is_robot(id) and (self.env.sim.solver.p_rho[p] > 0)
             if is_robot:
                 dist = self.data['robot_min_dist'][p]
-                if dist<self.surface_threshold: self.data['loss'][s] += dist/self.data['surface_pts'][None]
+                if dist<self.surface_threshold: self.data['loss'][s] += dist/(self.data['surface_pts'][None]+NORM_EPS)
         
         

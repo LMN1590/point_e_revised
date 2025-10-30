@@ -32,10 +32,10 @@ preload_emb:
     path: asset/embeddings/upsample_noise_cone.npy
 
 softzoo_config:
-
+  custom_gravity: False
   # eval: True
   out_dir: null # Placeholder, need to be set in run.py
-  # fixed_v: null
+  fixed_v: gripping_5_HTP.json
   env_config_file: modded_sim.yaml
   save_every_iter: *log_freq
   render_every_iter: *log_freq

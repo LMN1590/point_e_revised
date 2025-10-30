@@ -156,7 +156,7 @@ class AltSoftzooSimulation(BaseCond):
         sap_loss_lst = []
         accum_grad = torch.zeros_like(x)
         with torch.enable_grad():
-            ep_reward,reward_log = self.forward_sim(
+            ep_reward,reward_log,design_loss = self.forward_sim(
                 ctrl_tensor,
                 end_prob_mask,
                 iter,0,0
@@ -165,6 +165,7 @@ class AltSoftzooSimulation(BaseCond):
             cur_loss.append(all_loss[-1])
             
             if self.calc_gradient:
+                design_loss.backward(retain_graph=True)
                 self.designer.out_cache['geometry'].backward(gradient=grad[None]['self.env.design_space.buffer.geometry'],retain_graph=True)
                 self.designer.out_cache['softness'].backward(gradient=grad[None]['self.env.design_space.buffer.softness'],retain_graph=True)
                 grad_control = [grad[s]['self.env.sim.solver.act_buffer'] for s in self.controller.all_s]
@@ -183,7 +184,7 @@ class AltSoftzooSimulation(BaseCond):
         local_iter:int
     ):
         self.designer.reset()
-        designer_out = self.designer(ctrl_tensor,end_prob_mask)
+        designer_out,design_loss = self.designer(ctrl_tensor,end_prob_mask)
         design = dict()
         for design_type in self.config.set_design_types:
             if design_type == 'actuator_direction': assert getattr(self.designer,'has_actuator_direction',False)
@@ -232,8 +233,9 @@ class AltSoftzooSimulation(BaseCond):
             if frame >= velocities_by_frame[cur_v_idx][0]:
                 fixed_v = velocities_by_frame[cur_v_idx][1]
                 cur_v_idx +=1
-            if frame == 10:self.env.sim.solver.set_gravity((0.,15.,0.))
-            elif frame == 25:self.env.sim.solver.set_gravity((0.,0.,0.))
+            if self.config.custom_gravity:
+                if frame == 10:self.env.sim.solver.set_gravity((0.,15.,0.))
+                elif frame == 25:self.env.sim.solver.set_gravity((0.,0.,0.))
 
             current_s = self.env.sim.solver.current_s
             current_s_local = self.env.sim.solver.get_cyclic_s(current_s)
@@ -261,7 +263,7 @@ class AltSoftzooSimulation(BaseCond):
                 self.env.render()
 
             if done: break
-        return ep_reward,reward_log
+        return ep_reward,reward_log,design_loss
     def backward_sim(self):
         grad_names:Dict[int,List] = dict()
         if self.config.action_space == 'particle_v':
