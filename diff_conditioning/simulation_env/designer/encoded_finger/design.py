@@ -56,13 +56,13 @@ class EncodedFinger(Base):
         base_colors = np.asarray(base_pcd.colors)
 
         cylinder_mask = np.all(base_colors==self.base_config['segment_config']['cylinder_color'],axis=1)
-        self.cylinder_pts = torch.from_numpy(base_pts[cylinder_mask]).to(self.device) #(N,3)
-        self.conn_ends = torch.from_numpy(base_pts[~cylinder_mask]).to(self.device) # (M,3)
+        self.cylinder_pts = torch.from_numpy(base_pts[cylinder_mask]).to(self.device).float() #(N,3)
+        self.conn_ends = torch.from_numpy(base_pts[~cylinder_mask]).to(self.device).float() # (M,3)
         self.cylinder_num_pts = self.cylinder_pts.shape[0]
         self.conn_ends_num_pts = self.conn_ends.shape[0]
     def _load_fixed_base(self):
         base_pcd = o3d.io.read_point_cloud(self.base_config['fixed_base_config']['fixed_base_path'])
-        base_points = torch.from_numpy(np.asarray(base_pcd.points)).to(self.device)
+        base_points = torch.from_numpy(np.asarray(base_pcd.points)).to(self.device).float()
         calibrated_base_pts = calibrate_translate_pts(
             base_points, 
             mean = torch.tensor([0.,0.,0.]).to(self.device), 
@@ -187,7 +187,7 @@ class EncodedFinger(Base):
         ) # (num_finger,num_seg,N+M,3)
         
         full_fingers = rotated_segments.reshape(num_fingers,-1,3)
-        reversed_finger = full_fingers * torch.tensor([[[1.,-1.,1.]]]) # (num_finger,num_segment*(N+M),3)
+        reversed_finger = full_fingers * torch.tensor([[[1.,-1.,1.]]]).to(self.device) # (num_finger,num_segment*(N+M),3)
         
         # Plug fingers into the base, the root of the finger is already at (0,0,0)
         angles = torch.arange(num_fingers, device=self.device) * (2 * torch.pi / num_fingers) #(num_fingers)
@@ -210,7 +210,7 @@ class EncodedFinger(Base):
             reversed_finger             # (num_fingers,num_segments*(N+M),3)
         )
         translated_oriented_finger = oriented_finger + fingers_pos[:,None,:] # (num_fingers,num_segments*(N+M),3)
-        self.design_loss += finger_penetration_loss(translated_oriented_finger)
+        self.design_loss += finger_penetration_loss(translated_oriented_finger.float())
         filtered_finger = translated_oriented_finger.reshape(num_fingers,num_segment_per_finger,-1,3)[end_prob_mask.bool()] #(filtered_segment,(N+M),3)
         
         return torch.concat([self.base_pts,filtered_finger.reshape(-1,3)],dim = 0) # (num_particle,3)
@@ -341,14 +341,14 @@ class EncodedFinger(Base):
         spline_ctrl_pts = spline_ctrl_tensor*(
             self.base_config['segment_config']['spline_range'][1]-self.base_config['segment_config']['spline_range'][0]
         ) + self.base_config['segment_config']['spline_range'][0] # (B,4)
-        outer_cols = torch.ones(spline_ctrl_pts.shape[0],2)
+        outer_cols = torch.ones(spline_ctrl_pts.shape[0],2).to(self.device)
         full_ctrl_pts = torch.cat([
             outer_cols[:,:1], # (B,1)
             spline_ctrl_pts,  # (B,4)
             outer_cols[:,1:]  # (B,1)
         ],dim=1) # (B,6)
         
-        t = torch.linspace(0,self.base_config['segment_config']['base_length'],6)
+        t = torch.linspace(0,self.base_config['segment_config']['base_length'],6).to(self.device)
         coeffs = natural_cubic_spline_coeffs(t, full_ctrl_pts.T) # [6,(6,B)]
         spline = NaturalCubicSpline(coeffs)
         spline_res = spline.evaluate(t_sample) # (N,B)

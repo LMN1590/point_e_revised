@@ -36,7 +36,7 @@ ENVIRONMENT:
       scale: [0.4,0.4,0.4]
       initial_position: [0.55, 0.0, 0.4]
       initial_rotation: [1., 0., 0.0, 0.0] # w,x,y,z
-      initial_velocity: [0., 1.25, 0.]
+      initial_velocity: [0., 0., 0.]
       sample_density: 16
       material: FakeRigid
       particle_id: 2

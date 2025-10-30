@@ -55,7 +55,7 @@ softzoo_config:
   seed: *seed  # Placeholder, do not use
   torch_seed: *seed  # Placeholder, do not use
   static_as_fixed: True
-  device_memory_fraction: 0.7
+  device_memory_fraction: 0.65
 
   optimize_designer: True
   optimize_design_types: ['geometry','softness']

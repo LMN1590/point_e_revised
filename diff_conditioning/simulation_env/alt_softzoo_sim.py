@@ -161,6 +161,8 @@ class AltSoftzooSimulation(BaseCond):
                 end_prob_mask,
                 iter,0,0
             ) # gripper: cpu(design) -> cuda:0 (env)
+            tensorboard_logger.log_scalar("Simulation_SoftZoo/Design_Loss",design_loss.item())
+            tensorboard_logger.log_scalar("Simulation_SoftZoo/Episode_Reward",ep_reward)
             all_loss,grad,grad_name_control = self.backward_sim()
             cur_loss.append(all_loss[-1])
             
@@ -173,6 +175,8 @@ class AltSoftzooSimulation(BaseCond):
                 # print(ctrl_tensor.grad.reshape(-1).norm(2))
             cur_loss = np.array(cur_loss)
             tensorboard_logger.log_scalar("Simulation_SoftZoo/All_Batch_SoftZoo_Loss",cur_loss.mean())
+            
+            
     # endregion
     
     # region Simulation
@@ -234,7 +238,7 @@ class AltSoftzooSimulation(BaseCond):
                 fixed_v = velocities_by_frame[cur_v_idx][1]
                 cur_v_idx +=1
             if self.config.custom_gravity:
-                if frame == 10:self.env.sim.solver.set_gravity((0.,15.,0.))
+                if frame == 10:self.env.sim.solver.set_gravity((0.,20.,0.))
                 elif frame == 25:self.env.sim.solver.set_gravity((0.,0.,0.))
 
             current_s = self.env.sim.solver.current_s
