@@ -12,7 +12,7 @@ def generate_gripper(
     
     gripper_emb = torch.randn(num_grippers, num_finger, max_segment_count, hidden_dim) * variance_scale
     gripper_emb[:,:,:,6] *= (0.1/variance_scale)
-    gripper_emb[:,:,:,-1] += 0.5
+    gripper_emb[:,:,:,-1] += 0.75
     end_prob = torch.randn(num_grippers, num_finger, max_segment_count)
     
     for i in tqdm(range(num_grippers)):
