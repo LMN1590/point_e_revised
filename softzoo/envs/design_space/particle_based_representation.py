@@ -142,7 +142,7 @@ class ParticleBasedRepresentation(DesignRepresentation):
             self.sim.solver.actuation[s, p] = 0.
             if self.is_robot(id) and self.sim.solver.p_rho[p] > 0:
                 p_design_space = p - self.p_start
-                for i in ti.static(range(self.sim.solver.n_actuators)):
+                for i in range(self.sim.solver.n_actuators):
                     self.sim.solver.actuation[s, p] += self.buffer['actuator'][i, p_design_space] * self.sim.solver.act_buffer[s, i]
     
     @ti.func
@@ -150,7 +150,7 @@ class ParticleBasedRepresentation(DesignRepresentation):
         p_design_space = p - self.p_start
         AAt = ti.Matrix.zero(F_DTYPE, self.sim.solver.dim, self.sim.solver.dim)
         # don't need to check if particle is robot since this function is used in muscle material model and the particle must be robot
-        for i in ti.static(range(self.sim.solver.n_actuators)):
+        for i in range(self.sim.solver.n_actuators):
             # NOTE: interpolating muscle direction matrix may not be totally reasonable
             AAt += self.buffer['actuator'][i, p_design_space] * self.sim.solver.muscle_direction[i]
 
@@ -176,7 +176,7 @@ class ParticleBasedRepresentation(DesignRepresentation):
 
             if self.is_robot(id) and self.sim.solver.p_rho[p] > 0:
                 p_design_space = p - self.p_start
-                for i in ti.static(range(self.sim.solver.n_actuators)):
+                for i in range(self.sim.solver.n_actuators):
                     for d in ti.static(range(self.sim.solver.dim)):
                         self.sim.solver.v[s_local, p][d] += self.buffer['actuator'][i, p_design_space] * self.sim.solver.v_buffer[s, i][d]
     
