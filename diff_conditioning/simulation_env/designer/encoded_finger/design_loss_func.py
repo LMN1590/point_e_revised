@@ -14,7 +14,7 @@ def finger_penetration_loss(fingers_pos:torch.Tensor, dist_threshold:float = 0.1
         for j in range(i+1, num_fingers):
             dist = torch.cdist(fingers_pos[i], fingers_pos[j])  # (num_points,num_points)
             penetration_loss  = torch.sum(torch.clamp(dist_threshold-dist,min=0.0))
-            loss += penetration_loss#/(dist.shape[0]*dist.shape[1])  # average over point pairs
+            loss += penetration_loss/(dist.shape[0]*dist.shape[1])  # average over point pairs
     return loss / (num_fingers*(num_fingers-1)/2)  # average over finger pairs
 
     

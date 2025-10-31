@@ -41,6 +41,8 @@ class ThrowObject(Base):
         )
     
     def reset(self):
+        for v in self.data.values():
+            v.fill(0.)
         self._misc_compute()
         self.step_cnt = 0
 
@@ -50,7 +52,6 @@ class ThrowObject(Base):
     def get_reward(self, s):
         self.step_cnt += 1
         if self.config['reward_mode'] == 'per_step':
-            
             s_local = self.env.sim.solver.get_cyclic_s(s)
             self._compute_x_avg(s_local,self.data['cur_obj_avg'])
             forward_dir = ti.Vector(self.config['forward_direction'])
