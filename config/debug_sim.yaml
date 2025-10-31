@@ -1,8 +1,8 @@
-exp_name: debug_benchmark_topdown_downscaled_roll_scaledup_strength
+exp_name: debug_sim
 seed: &seed 310
 out_dir: ./logs/
 tensorboard_log_dir: runs/
-save_every_iter: &log_freq 101
+save_every_iter: &log_freq 1
 total_steps: 512 # Check diffusion_cfg to see how many steps there are in diffusion (normal diffusion + upsampler)
 substep_count: 1 # remember to update in diffusion config in pointe, under the k keys
 
