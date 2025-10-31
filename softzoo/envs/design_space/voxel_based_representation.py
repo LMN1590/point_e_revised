@@ -233,7 +233,7 @@ class VoxelBasedRepresentation(DesignRepresentation):
             
             self.sim.solver.actuation[s, p] = 0.
             if self.is_robot(id) and self.sim.solver.p_rho[p] > 0:
-                for i in range(self.sim.solver.n_actuators):
+                for i in ti.static(range(self.sim.solver.n_actuators)):
                     self.sim.solver.actuation[s, p] += self.buffer['actuator'][i, design_id] * self.sim.solver.act_buffer[s, i]
                     
     @ti.func
@@ -242,7 +242,7 @@ class VoxelBasedRepresentation(DesignRepresentation):
         design_id = self.particle_id_to_design_id[id]
         AAt = ti.Matrix.zero(F_DTYPE, self.sim.solver.dim, self.sim.solver.dim)
         # don't need to check if particle is robot since this function is used in muscle material model and the particle must be robot
-        for i in range(self.sim.solver.n_actuators):
+        for i in ti.static(range(self.sim.solver.n_actuators)):
             # NOTE: interpolating muscle direction matrix may not be totally reasonable
             AAt += self.buffer['actuator'][i, design_id] * self.sim.solver.muscle_direction[i]
 
@@ -288,6 +288,6 @@ class VoxelBasedRepresentation(DesignRepresentation):
             id = self.sim.solver.particle_ids[p]
             if self.is_robot(id) and (self.sim.solver.p_rho[p] > 0):
                 design_id = self.particle_id_to_design_id[id]
-                for i in range(self.sim.solver.n_actuators):
+                for i in ti.static(range(self.sim.solver.n_actuators)):
                     ext_arr[p_ext, i] = self.buffer['actuator'][i, design_id]
     # endregion
