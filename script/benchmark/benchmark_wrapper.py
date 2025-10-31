@@ -3,30 +3,25 @@ import json
 from tqdm import tqdm
 import subprocess
 
-env_config_dir = 'benchmark/benchmark_config'
-
-pairs = [(env_config, num_fingers)
-         for env_config in os.listdir(env_config_dir)
-         for num_fingers in range(2, 5)]
+env_config_dir = 'script/benchmark/benchmark_config'
 
 success, fail = [], []
 
 try:
-    for env_config, num_fingers in tqdm(pairs, desc="Processing"):
+    for env_config in tqdm(os.listdir(env_config_dir), desc="Processing"):
         result = subprocess.run(
             [
-                "python", "-m", "benchmark.benchmark",
-                "--num_finger", str(num_fingers),
-                "--env_config_path", env_config
+                "python", "-m", "script.benchmark.finger_rep_benchmark.fingerrep_benchmark_topdown",
+                "--env_config_path", env_config,
+                '--gripper_dir', 'data/grippers',
             ],
             capture_output=True, text=True
         )
 
         if result.returncode == 0:
-            success.append((env_config, num_fingers))
+            success.append((env_config))
         else:
             fail.append({
-                "num_fingers": num_fingers,
                 "env_config_path": env_config,
                 "reasons": result.stderr.strip() or "Unknown error"
             })
@@ -36,7 +31,7 @@ except KeyboardInterrupt:
 
 # Always write out fail cases, even if interrupted
 if fail:
-    with open("benchmark/failures.json", "w") as f:
+    with open("script/benchmark/failures.json", "w") as f:
         json.dump(fail, f, indent=2)
 
 print("\n✅ Successful runs:", success)

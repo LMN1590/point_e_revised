@@ -206,7 +206,7 @@ class AltSoftzooSimulation(BaseCond):
         
         if self.config.optimize_designer and (sampling_step%self.config.render_every_iter==0):
             if 'particle_based_representation' in str(self.env.design_space):
-                for design_type in ['geometry','actuator','softness']:
+                for design_type in ['geometry','softness']:
                     design_fpath = os.path.join(self.design_dir, f'{design_type}_Batch_{batch_idx}_Sampling_{sampling_step:04d}_Local_{local_iter:04d}.pcd')
                     design_pcd = self.designer.save_pcd(design_fpath, design, design_type)
                 save_pcd_to_mesh(
@@ -218,7 +218,7 @@ class AltSoftzooSimulation(BaseCond):
                     os.path.join(self.design_dir, f'actuator_direction_Batch_{batch_idx}_Sampling_{sampling_step:04d}_Local_{local_iter:04d}.npy'), 
                 )
             elif 'voxel_based_representation' in str(self.env.design_space):
-                for design_type in self.config.optimize_design_types:
+                for design_type in ['geometry','softness']:
                     design_fpath = os.path.join(self.design_dir, f'{design_type}_{sampling_step:04d}.ply')
                     self.designer.save_voxel_grid(design_fpath, design, design_type)
             else:

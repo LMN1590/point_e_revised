@@ -11,7 +11,6 @@ from typing import Dict
 from tqdm import tqdm
 import json
 
-from diff_conditioning.simulation_env.alt_softzoo_sim import AltSoftzooSimulation
 from config.config_dataclass import GeneralConfig
 
 config_path = "config/benchmark_sim_topdown.yaml"
@@ -30,11 +29,13 @@ LOG_PATH_DICT = init_log_dir(
     increment_step=1.
 )
 
+from diff_conditioning.simulation_env.alt_softzoo_sim import AltSoftzooSimulation
+
 def generate_simcls(env_config_file:str):
     softzoo_config:Dict = general_config['softzoo_config']
     mod_softzoo_config = copy.deepcopy(softzoo_config)
     mod_softzoo_config['env_config_file'] = env_config_file
-    mod_softzoo_config['out_dir'] = os.path.join('./logs',env_config_file[:-5])
+    mod_softzoo_config['out_dir'] = os.path.join('./logs',general_config['exp_name'],'benchmark',env_config_file[:-5])
     os.makedirs(mod_softzoo_config['out_dir'],exist_ok=True)
     with open(os.path.join(mod_softzoo_config['out_dir'],'softzoo_config.yaml'),'w') as f:
         yaml.safe_dump(mod_softzoo_config,f)
@@ -68,12 +69,16 @@ def run_benchmark_gripping(
         local_iter = -1
     )
     all_loss,grad,grad_name_control = sim_cls.backward_sim()
+    
+    dict_item = {
+        "reward":ep_reward,
+        "design_loss":design_loss.item(),
+        "all_loss":all_loss[-1]
+    }
+    print(dict_item)
+    
     with open(os.path.join(sim_cls.config.out_dir,f'gripping_result_id{index}.json'),'w') as f:
-        json.dump({
-            "reward":ep_reward,
-            "design_loss":design_loss,
-            "all_loss":all_loss
-        },f)
+        json.dump(dict_item,f)
 
 
 if __name__ == "__main__":

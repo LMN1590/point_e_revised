@@ -1,7 +1,5 @@
-import torch
+import os
 
-fingers_pos = torch.randn(4,10,3)
-
-dist = torch.cdist(fingers_pos[1], fingers_pos[0])  # (num_points,pts,3)
-dist_threshold = 0.01
-summed = torch.sum(torch.clamp(dist_threshold - dist, min=0.0))
+base_dir = '/media/aioz-nghiale/data1/Data/mujoco_scanned_objects/models'
+dirs = os.listdir(base_dir)
+print(dirs.index('5_HTP'))

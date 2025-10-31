@@ -32,16 +32,16 @@ def generate_quaternion_grid(resolution=2):
     return quaternions
 
 if __name__ == "__main__":
-    base_config_path = 'softzoo/configs/env_configs/benchmark_lifting.yaml'
+    base_config_path = 'softzoo/configs/env_configs/modded_sim.yaml'
     benchmark_config_path = 'script/benchmark/benchmark_config'
     os.makedirs(benchmark_config_path,exist_ok=True)
     quats = generate_quaternion_grid(4)
-    real_scales = [0.3,0.5,0.7]
+    real_scales = [0.3,0.4,0.5]
     with open(base_config_path) as f:
         env_config = yaml.safe_load(f)
 
     base_dir = '/media/aioz-nghiale/data1/Data/mujoco_scanned_objects/models'
-    for obj in tqdm(os.listdir(base_dir)[:5]):
+    for obj in tqdm(os.listdir(base_dir)[14:15]):
         obj_path = os.path.join(base_dir,obj,'model.obj')
         random_quats = random.sample(quats,k=4)
         for quat in random_quats:

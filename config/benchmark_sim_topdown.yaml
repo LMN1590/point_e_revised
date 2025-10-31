@@ -1,4 +1,4 @@
-exp_name: test_smoother_loss
+exp_name: debug_benchmark_topdown
 seed: &seed 310
 out_dir: ./logs/
 tensorboard_log_dir: runs/

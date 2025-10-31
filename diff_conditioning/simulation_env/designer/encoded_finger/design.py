@@ -32,8 +32,6 @@ class EncodedFinger(Base):
     ):
         super(EncodedFinger,self).__init__(env)
         
-        self.design_loss = torch.zeros(1,device=device)
-        
         self.passive_geometry_mul = passive_geometry_mul
         self.passive_softness_mul = passive_softness_mul
         self.base_config = base_config
@@ -88,6 +86,7 @@ class EncodedFinger(Base):
             actuator_direction=None,
             is_passive_fixed = None
         )
+        self.design_loss = torch.zeros(1,device=self.device)
     # endregion
     
     def forward(self,ctrl_tensor:torch.Tensor,end_prob_mask:torch.Tensor):

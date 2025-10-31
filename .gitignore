@@ -9,4 +9,5 @@ out/
 runs_temp/
 archive/
 benchmark_config/
+data/
 # img_asset/
