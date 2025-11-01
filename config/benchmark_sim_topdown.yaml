@@ -1,4 +1,4 @@
-exp_name: debug_benchmark_topdown_downscaled_roll_scaledup_strength_config
+exp_name: debug_benchmark_topdown_downscaled_roll_scaledup_strength_config_mod_static
 seed: &seed 310
 out_dir: ./logs/
 tensorboard_log_dir: runs/
