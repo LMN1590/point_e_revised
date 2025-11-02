@@ -1,4 +1,4 @@
-exp_name: debug_benchmark_topdown_downscaled_roll_scaledup_strength_config_mod_static
+exp_name: debug_benchmark_topdown_downscaled_roll_scaledup_strength_config_mod_static_modded_data_gen_process
 seed: &seed 310
 out_dir: ./logs/
 tensorboard_log_dir: runs/
@@ -62,9 +62,9 @@ softzoo_config:
   designer_lr: 0.1
   optimize_controller: True
   gen_pointe_bounding_box:
-    max: [1.05,0.1,1.05]
+    max: [1.2,0.1,1.2]
     # mean: [0.,0.,0.]
-    min: [-1.05,-3.,-1.05]
+    min: [-1.2,-3.,-1.2]
 
   design_device: cpu
   obj_initial_pos: [0,0,0]

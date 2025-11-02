@@ -268,9 +268,13 @@ class EncodedFinger(Base):
         points_mean =  actual_mean if self.bounding_box is None or 'mean' not in self.bounding_box else torch.tensor(self.bounding_box['mean']).to(self.device)
         points_max = actual_max if self.bounding_box is None or 'max' not in self.bounding_box else torch.max(torch.tensor(self.bounding_box['max']).to(self.device),actual_max)
 
+        points_bb = points_max - points_min
+        coords_bb = coords_max - coords_min
+        scale_diff = coords_bb / points_bb
+
         def calibrate_points(_pts:torch.Tensor, y_offset=0.):
             _pts_calibrated = _pts - points_mean # center
-            _pts_calibrated = _pts_calibrated / torch.max(points_max - points_min) * torch.max(coords_max - coords_min)*0.95 # rescale
+            _pts_calibrated = _pts_calibrated * torch.min(scale_diff) * 0.99 # rescale
             _pts_calibrated = _pts_calibrated + coords_mean # recenter
             _pts_calibrated = _pts_calibrated + torch.clip(coords_min - _pts_calibrated.min(0).values, min=0, max=torch.inf) # make sure within min-bound
             _pts_calibrated = _pts_calibrated - torch.clip(_pts_calibrated.max(0).values - coords_max, min=0, max=torch.inf) # make sure within max-bound

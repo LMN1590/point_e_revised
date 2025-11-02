@@ -45,12 +45,12 @@ sim_cls = AltSoftzooSimulation.init_cond(
     softzoo_config=full_softzoo_config,
     sap_config=general_config['sap_config']
 )
-# ctrl_tensor = torch.tensor([1.0,1.0,1.0,1.0,1.0,0.5,0.5,0.5,1.0,1.0])
-# ctrl_tensor = ctrl_tensor.repeat(4,6,1)
-raw_tensor = torch.randn(4,10,10)
+ctrl_tensor = torch.tensor([1.0,1.0,1.0,1.0,1.0,0.5,0.5,0.5,1.0,1.0])
+ctrl_tensor = ctrl_tensor.repeat(4,10,1)
+# raw_tensor = torch.randn(4,10,10)
 end_prob_mask = torch.ones(4,10)
 
-# raw_tensor = torch.log(ctrl_tensor/(1-ctrl_tensor))
+raw_tensor = torch.log(ctrl_tensor/(1-ctrl_tensor))
 raw_tensor.requires_grad_(True)
 end_prob_mask.requires_grad_(True)
 lr = 1e-1

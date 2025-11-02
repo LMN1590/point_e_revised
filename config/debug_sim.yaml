@@ -36,7 +36,7 @@ softzoo_config:
   # eval: True
   out_dir: null # Placeholder, need to be set in run.py
   fixed_v: gripping_5_HTP.json
-  env_config_file: modded_sim.yaml
+  env_config_file: test.yaml
   save_every_iter: *log_freq
   render_every_iter: *log_freq
   n_iters: 301
@@ -62,9 +62,9 @@ softzoo_config:
   designer_lr: 0.1
   optimize_controller: True
   gen_pointe_bounding_box:
-    max: [1.05,0.1,1.05]
+    max: [1.2,0.1,1.2]
     # mean: [0.,0.,0.]
-    min: [-1.05,-3.,-1.05]
+    min: [-1.2,-3.,-1.2]
 
   design_device: cpu
   obj_initial_pos: [0,0,0]
