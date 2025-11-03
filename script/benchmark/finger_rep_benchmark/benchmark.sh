@@ -1,5 +1,5 @@
 # Generate Grippers
-python -m script.benchmark.finger_rep_benchmark.generate_gripper --num_finger 4 --max_variance_scale 2.0 --max_segment_count 10 --hidden_dim 10 --num_grippers 1000 --gripper_dir data/grippers
+python -m script.benchmark.finger_rep_benchmark.generate_gripper --num_finger 4 --max_variance_scale 10.0 --max_segment_count 10 --hidden_dim 10 --num_grippers 1000 --gripper_dir data/grippers
 
 # Config Gen
 python -m script.benchmark.config_gen
