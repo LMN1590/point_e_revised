@@ -172,17 +172,17 @@ class SoftZooSimulation(BaseCond):
                 
                 if self.calc_gradient:
                     logging.info(f'{self.name}: Start backpropagating gradients for batch_idx {i}')
+                    
                     design_loss.backward(retain_graph=True)
                     self.designer.out_cache['geometry'].backward(gradient=grad[None]['self.env.design_space.buffer.geometry'],retain_graph=True)
                     self.designer.out_cache['softness'].backward(gradient=grad[None]['self.env.design_space.buffer.softness'],retain_graph=True)
                     grad_control = [grad[s]['self.env.sim.solver.act_buffer'] for s in self.controller.all_s]
                     self.controller.backward(grad_control)
                     
-                    if not torch.isnan(x.grad.sum()):
-                        accum_grad[i] = x.grad[i].clone()
-                        x.grad.zero_()
+                    if not torch.isnan(x.grad.sum()): accum_grad[i] = x.grad[i].clone()
                     else:
                         logging.warning(f'{self.name}: NaN gradient detected for batch_idx {i}, setting gradient to zero.')
+                    x.grad.zero_()
                         
         scaled_gradient = torch.clamp(-accum_grad*self.grad_scale,min = -self.grad_clamp,max=self.grad_clamp)
         
