@@ -4,8 +4,8 @@ import torch.nn as nn
 
 from typing import Sequence, Optional, Literal, Callable, Dict, Tuple, Union, Any
 from tqdm import tqdm
-import logging
-from logger import TENSORBOARD_LOGGER
+# import logging
+# from logger import TENSORBOARD_LOGGER
 
 from .const import DIFFUSION_LOSS_TYPE,DIFFUSION_MEAN_TYPE,DIFFUSION_VAR_TYPE
 from ..diff_utils import _extract_into_tensor,normal_kl,discretized_gaussian_log_likelihood,mean_flat,approx_standard_normal_cdf
@@ -296,8 +296,8 @@ class GaussianDiffusion:
         gradient = cond_fn(x, t, **condition_kwargs)
         mean_modifier = p_mean_var["variance"] * gradient.float()
         new_mean = p_mean_var["mean"].float() + mean_modifier
-        TENSORBOARD_LOGGER.log_scalar("Conditioning_DDPM/Original_Mean",p_mean_var["mean"].float().reshape(-1).norm(2))
-        TENSORBOARD_LOGGER.log_scalar("Conditioning_DDPM/Mean_Modifier",mean_modifier.reshape(-1).norm(2))
+        # TENSORBOARD_LOGGER.log_scalar("Conditioning_DDPM/Original_Mean",p_mean_var["mean"].float().reshape(-1).norm(2))
+        # TENSORBOARD_LOGGER.log_scalar("Conditioning_DDPM/Mean_Modifier",mean_modifier.reshape(-1).norm(2))
         return {
             "mean": new_mean,
             "gradient": gradient
@@ -326,8 +326,8 @@ class GaussianDiffusion:
         eps_modifier = (1 - alpha_bar).sqrt() * gradient
         eps = eps - eps_modifier
         
-        TENSORBOARD_LOGGER.log_scalar("Conditioning_DDIM/Original_Eps",eps.reshape(-1).norm(2))
-        TENSORBOARD_LOGGER.log_scalar("Conditioning_DDIM/Eps_Modifier",eps_modifier.reshape(-1).norm(2))
+        # TENSORBOARD_LOGGER.log_scalar("Conditioning_DDIM/Original_Eps",eps.reshape(-1).norm(2))
+        # TENSORBOARD_LOGGER.log_scalar("Conditioning_DDIM/Eps_Modifier",eps_modifier.reshape(-1).norm(2))
 
         out = p_mean_var.copy()
         out["pred_xstart"] = self._predict_xstart_from_eps(x, t, eps)
@@ -382,20 +382,20 @@ class GaussianDiffusion:
         sample = out["mean"] + nonzero_mask * th.exp(0.5 * out["log_variance"]) * noise
         
         if cond_fn is not None and t[0]<=self.condition_threshold:
-            TENSORBOARD_LOGGER.log_scalar("Overall_DDPM_Original/Predicted_Mean_xt_L2Norm",out["mean"].reshape(-1).norm(2))
-            TENSORBOARD_LOGGER.log_scalar("Overall_DDPM_Original/Sample_xt-1_L2Norm",sample.reshape(-1).norm(2))
+            # TENSORBOARD_LOGGER.log_scalar("Overall_DDPM_Original/Predicted_Mean_xt_L2Norm",out["mean"].reshape(-1).norm(2))
+            # TENSORBOARD_LOGGER.log_scalar("Overall_DDPM_Original/Sample_xt-1_L2Norm",sample.reshape(-1).norm(2))
             sample = x
             for local_iter in tqdm(range(self.k),desc = f"Current sampling step {t[0].item()}",position=1,leave=False):
-                logging.info(f"Current sampling step {t[0].item()} - local iter {local_iter}")
+                # logging.info(f"Current sampling step {t[0].item()} - local iter {local_iter}")
                 out["mean"] = self.condition_mean(
                     cond_fn, out, sample, t, 
                     local_iter = local_iter, model_kwargs=model_kwargs
                 )['mean']
                 noise = th.randn_like(x)
                 sample = out["mean"] + nonzero_mask * th.exp(0.5 * out["log_variance"]) * noise
-                TENSORBOARD_LOGGER.log_scalar("Overall_DDPM/Predicted_Mean_xt_L2Norm",out["mean"].reshape(-1).norm(2))
-                TENSORBOARD_LOGGER.log_scalar("Overall_DDPM/Sample_xt-1_L2Norm",sample.reshape(-1).norm(2))
-                TENSORBOARD_LOGGER.increment()
+                # TENSORBOARD_LOGGER.log_scalar("Overall_DDPM/Predicted_Mean_xt_L2Norm",out["mean"].reshape(-1).norm(2))
+                # TENSORBOARD_LOGGER.log_scalar("Overall_DDPM/Sample_xt-1_L2Norm",sample.reshape(-1).norm(2))
+                # TENSORBOARD_LOGGER.increment()
             
         return {"sample": sample, "pred_xstart": out["pred_xstart"]}
     
@@ -544,10 +544,10 @@ class GaussianDiffusion:
         sample = mean_pred + nonzero_mask * sigma * noise
         
         if cond_fn is not None and t[0]<=self.condition_threshold:
-            TENSORBOARD_LOGGER.log_scalar("Overall_DDIM_Original/Eps_Modifier_xt_L2Norm",mean_pred_eps_modifier.reshape(-1).norm(2))
-            TENSORBOARD_LOGGER.log_scalar("Overall_DDIM_Original/Modified_Predicted_Mean_xt_L2Norm",mean_pred.reshape(-1).norm(2))
-            TENSORBOARD_LOGGER.log_scalar("Overall_DDIM_Original/Sample_xt-1_L2Norm",sample.reshape(-1).norm(2))
-            TENSORBOARD_LOGGER.log_scalar("Overall_DDIM_Original/Eps_L2Norm",out['eps'].reshape(-1).norm(2))
+            # TENSORBOARD_LOGGER.log_scalar("Overall_DDIM_Original/Eps_Modifier_xt_L2Norm",mean_pred_eps_modifier.reshape(-1).norm(2))
+            # TENSORBOARD_LOGGER.log_scalar("Overall_DDIM_Original/Modified_Predicted_Mean_xt_L2Norm",mean_pred.reshape(-1).norm(2))
+            # TENSORBOARD_LOGGER.log_scalar("Overall_DDIM_Original/Sample_xt-1_L2Norm",sample.reshape(-1).norm(2))
+            # TENSORBOARD_LOGGER.log_scalar("Overall_DDIM_Original/Eps_L2Norm",out['eps'].reshape(-1).norm(2))
             sample = x
             
             for local_iter in tqdm(range(self.k),desc = f"Current iter {t[0].item()}",position=1,leave=False):
@@ -573,11 +573,11 @@ class GaussianDiffusion:
                     (t != 0).float().view(-1, *([1] * (len(x.shape) - 1)))
                 )  # no noise when t == 0
                 sample = mean_pred + nonzero_mask * sigma * noise
-                TENSORBOARD_LOGGER.log_scalar("Overall_DDIM/Eps_L2Norm",out['eps'].reshape(-1).norm(2))
-                TENSORBOARD_LOGGER.log_scalar("Overall_DDIM/Eps_Modifier_xt_L2Norm",mean_pred_eps_modifier.reshape(-1).norm(2))
-                TENSORBOARD_LOGGER.log_scalar("Overall_DDIM/Modified_Predicted_Mean_xt_L2Norm",mean_pred.reshape(-1).norm(2))
-                TENSORBOARD_LOGGER.log_scalar("Overall_DDIM/Sample_xt-1_L2Norm",sample.reshape(-1).norm(2))
-                TENSORBOARD_LOGGER.increment()
+                # TENSORBOARD_LOGGER.log_scalar("Overall_DDIM/Eps_L2Norm",out['eps'].reshape(-1).norm(2))
+                # TENSORBOARD_LOGGER.log_scalar("Overall_DDIM/Eps_Modifier_xt_L2Norm",mean_pred_eps_modifier.reshape(-1).norm(2))
+                # TENSORBOARD_LOGGER.log_scalar("Overall_DDIM/Modified_Predicted_Mean_xt_L2Norm",mean_pred.reshape(-1).norm(2))
+                # TENSORBOARD_LOGGER.log_scalar("Overall_DDIM/Sample_xt-1_L2Norm",sample.reshape(-1).norm(2))
+                # TENSORBOARD_LOGGER.increment()
             
 
         return {"sample": sample, "pred_xstart": out["pred_xstart"]}
@@ -971,7 +971,7 @@ class GaussianDiffusion:
             # TENSORBOARD_LOGGER.log_scalar("Overall_DDPM_Original/Sample_xt-1_L2Norm",sample.reshape(-1).norm(2))
             sample = x
             for local_iter in tqdm(range(self.k),desc = f"Current sampling step {t[0].item()}",position=1,leave=False):
-                logging.info(f"Current sampling step {t[0].item()} - local iter {local_iter}")
+                # logging.info(f"Current sampling step {t[0].item()} - local iter {local_iter}")
                 
                 out = self.p_mean_variance(
                     model,
@@ -991,7 +991,7 @@ class GaussianDiffusion:
                 sample = sample + out['variance']/2 * (model_eps + sim_gradient) + out['variance'] * noise
                 # TENSORBOARD_LOGGER.log_scalar("Overall_DDPM/Predicted_Mean_xt_L2Norm",out["mean"].reshape(-1).norm(2))
                 # TENSORBOARD_LOGGER.log_scalar("Overall_DDPM/Sample_xt-1_L2Norm",sample.reshape(-1).norm(2))
-                TENSORBOARD_LOGGER.increment()
+                # TENSORBOARD_LOGGER.increment()
         else:
             out = self.p_mean_variance(
                 model,
@@ -1105,7 +1105,7 @@ class GaussianDiffusion:
                 # TENSORBOARD_LOGGER.log_scalar("Overall_DDIM/Eps_Modifier_xt_L2Norm",mean_pred_eps_modifier.reshape(-1).norm(2))
                 # TENSORBOARD_LOGGER.log_scalar("Overall_DDIM/Modified_Predicted_Mean_xt_L2Norm",mean_pred.reshape(-1).norm(2))
                 # TENSORBOARD_LOGGER.log_scalar("Overall_DDIM/Sample_xt-1_L2Norm",sample.reshape(-1).norm(2))
-                TENSORBOARD_LOGGER.increment()
+                # TENSORBOARD_LOGGER.increment()
         else:
             out = self.p_mean_variance(
                 model,

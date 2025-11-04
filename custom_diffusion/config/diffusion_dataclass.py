@@ -15,7 +15,7 @@ class BaseDiffusionConfig(TypedDict):
     k: int                                      # Number of MCMC sampling in one denoising step
     condition_threshold: int                    # Threshold for t<threshold to start simulation conditioning
     
-with open('point_e/config/diffusion_cfg.yaml', 'r') as file:
+with open('custom_diffusion/config/diffusion_cfg.yaml', 'r') as file:
     diffusion_yaml_config = safe_load(file)
     
 DIFFUSION_CONFIGS: Dict[str, BaseDiffusionConfig] = diffusion_yaml_config['DIFFUSION_CONFIGS']

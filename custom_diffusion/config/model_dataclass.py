@@ -27,7 +27,7 @@ class SDFConfig(BaseModelConfig):
     encoder_heads: int
     encoder_layers: int
     
-with open('point_e/config/model_cfg.yaml', 'r') as file:
+with open('custom_diffusion/config/model_cfg.yaml', 'r') as file:
     model_yaml_config = safe_load(file)
     
 MODEL_CONFIGS: Dict[str, BaseModelConfig] = model_yaml_config['MODEL_CONFIGS']
