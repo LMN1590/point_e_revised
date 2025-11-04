@@ -3,7 +3,6 @@ import taichi as ti
 import numpy as np
 import torch
 
-import random
 from yaml import safe_load
 import os
 import shutil
@@ -22,16 +21,12 @@ from point_e.diffusion.gaussian_diffusion import GaussianDiffusion
 
 from .env import make_env
 from .loss import make_loss
-from .sap import CustomSAP
-from . import controllers as controller_module
 
 from .utils.path import CONFIG_DIR,DEFAULT_CFG_DIR
 from ..base_cond import BaseCond
 from .designer.encoded_finger.design import EncodedFinger
 from .controllers.custom_finger_rep import CustomFingerRepController
 
-from sap.config_dataclass import SAPConfig
-from config.config_dataclass import ConditioningConfig
 from logger import TENSORBOARD_LOGGER as tensorboard_logger,CSVLOGGER
 import logging
 
@@ -41,11 +36,16 @@ class SoftZooSimulation(BaseCond):
         self, config:FullConfig,
         name:str,
         grad_scale:float, calc_gradient:bool = False,grad_clamp:float = 1e-2,
-        logging_bool:bool = True
+        logging_bool:bool = True,
+        num_fingers:int=4,max_num_segments:int = 10,gripper_dim:int = 10,
     ):
         super(SoftZooSimulation, self).__init__(name,grad_scale,calc_gradient,grad_clamp,logging_bool)
         self.config = config
         self.torch_device = config.design_device
+        self.gripper_dim = gripper_dim
+        self.total_dim = gripper_dim + 1
+        self.max_num_segments = max_num_segments
+        self.num_fingers = num_fingers
         
         ti.init(arch=ti.cuda, device_memory_fraction=config.device_memory_fraction, random_seed = config.seed)
         
@@ -143,7 +143,7 @@ class SoftZooSimulation(BaseCond):
         
         logging.info(f'{self.name}: Start calculating gradients for SoftZoo...')
         x = x.detach().requires_grad_(True)
-        B = x.shape[0]
+        B,C,T = x.shape
         cur_loss = []
         accum_grad = torch.zeros_like(x) 
         
@@ -156,13 +156,15 @@ class SoftZooSimulation(BaseCond):
                 x,t,
                 p_mean_var['eps']
             )
-            pred_xstart = diffusion.unscale_channels(scaled_pred_xstart)
-            ctrl_tensor, end_mask = pred_xstart[:,:-1,:], pred_xstart[:,-1,:]
+            pred_xstart = diffusion.unscale_channels(scaled_pred_xstart) # [B,C,num_finger*num_segments]
+            gripper_emb = pred_xstart.permute(0,2,1).reshape(B,self.num_fingers,self.max_num_segments,C) # [B,finger,segments,C]
+            
+            ctrl_tensors, end_masks = pred_xstart[:,:,:-1], pred_xstart[:,:,:,-1]
             
             for i,t_sample in zip(range(B),t.tolist()):
                 ep_reward,reward_log,design_loss = self.forward_sim(
-                    ctrl_tensor,
-                    end_mask,
+                    ctrl_tensors[i],
+                    end_masks[i],
                     batch_idx=i, sampling_step=t_sample,
                     local_iter=local_iter
                 ) # gripper: cpu(design) -> cuda:0 (env)

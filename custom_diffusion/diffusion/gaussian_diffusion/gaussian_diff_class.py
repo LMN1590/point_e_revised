@@ -298,7 +298,10 @@ class GaussianDiffusion:
         new_mean = p_mean_var["mean"].float() + mean_modifier
         TENSORBOARD_LOGGER.log_scalar("Conditioning_DDPM/Original_Mean",p_mean_var["mean"].float().reshape(-1).norm(2))
         TENSORBOARD_LOGGER.log_scalar("Conditioning_DDPM/Mean_Modifier",mean_modifier.reshape(-1).norm(2))
-        return new_mean
+        return {
+            "mean": new_mean,
+            "gradient": gradient
+        }
 
     def condition_score(self, cond_fn:Callable[...,th.Tensor], p_mean_var:Dict[str,th.Tensor], x:th.Tensor, t:th.Tensor, local_iter:int, model_kwargs=None):
         """
@@ -319,7 +322,8 @@ class GaussianDiffusion:
         condition_kwargs['diffusion'] = self if "diffusion" not in condition_kwargs else condition_kwargs['diffusion']
         condition_kwargs['p_mean_var'] = p_mean_var
         condition_kwargs['local_iter'] = local_iter
-        eps_modifier = (1 - alpha_bar).sqrt() * cond_fn(x, t, **condition_kwargs)
+        gradient = cond_fn(x, t, **condition_kwargs)
+        eps_modifier = (1 - alpha_bar).sqrt() * gradient
         eps = eps - eps_modifier
         
         TENSORBOARD_LOGGER.log_scalar("Conditioning_DDIM/Original_Eps",eps.reshape(-1).norm(2))
@@ -329,6 +333,7 @@ class GaussianDiffusion:
         out["pred_xstart"] = self._predict_xstart_from_eps(x, t, eps)
         out["mean"], _, _ = self.q_posterior_mean_variance(x_start=out["pred_xstart"], x_t=x, t=t)
         out['eps'] = eps
+        out['gradient'] = gradient
         return out
     # endregion
     
@@ -385,7 +390,7 @@ class GaussianDiffusion:
                 out["mean"] = self.condition_mean(
                     cond_fn, out, sample, t, 
                     local_iter = local_iter, model_kwargs=model_kwargs
-                )
+                )['mean']
                 noise = th.randn_like(x)
                 sample = out["mean"] + nonzero_mask * th.exp(0.5 * out["log_variance"]) * noise
                 TENSORBOARD_LOGGER.log_scalar("Overall_DDPM/Predicted_Mean_xt_L2Norm",out["mean"].reshape(-1).norm(2))
@@ -902,7 +907,6 @@ class GaussianDiffusion:
         }
     # endregion
     
-    
     # region Scaling 
     def scale_channels(self, x: th.Tensor) -> th.Tensor:
         if self.channel_scales is not None:
@@ -932,4 +936,254 @@ class GaussianDiffusion:
         return {
             k: (self.unscale_channels(v) if isinstance(v, th.Tensor) else v) for k, v in out.items()
         }
+    # endregion
+    
+    # region MCMC Sampling
+    def p_mcmc_sample(
+        self,
+        model:nn.Module,
+        x:th.Tensor,
+        t:th.Tensor,
+        clip_denoised=False,
+        denoised_fn=None,
+        cond_fn=None,
+        model_kwargs=None,
+    ):
+        """
+        Sample x_{t-1} from the model at the given timestep.
+
+        :param model: the model to sample from.
+        :param x: the current tensor at x_{t-1}.
+        :param t: the value of t, starting at 0 for the first diffusion step.
+        :param clip_denoised: if True, clip the x_start prediction to [-1, 1].
+        :param denoised_fn: if not None, a function which applies to the
+            x_start prediction before it is used to sample.
+        :param cond_fn: if not None, this is a gradient function that acts
+                        similarly to the model.
+        :param model_kwargs: if not None, a dict of extra keyword arguments to
+            pass to the model. This can be used for conditioning.
+        :return: a dict containing the following keys:
+                 - 'sample': a random sample from the model.
+                 - 'pred_xstart': a prediction of x_0.
+        """        
+        if cond_fn is not None and t[0]<=self.condition_threshold:
+            # TENSORBOARD_LOGGER.log_scalar("Overall_DDPM_Original/Predicted_Mean_xt_L2Norm",out["mean"].reshape(-1).norm(2))
+            # TENSORBOARD_LOGGER.log_scalar("Overall_DDPM_Original/Sample_xt-1_L2Norm",sample.reshape(-1).norm(2))
+            sample = x
+            for local_iter in tqdm(range(self.k),desc = f"Current sampling step {t[0].item()}",position=1,leave=False):
+                logging.info(f"Current sampling step {t[0].item()} - local iter {local_iter}")
+                
+                out = self.p_mean_variance(
+                    model,
+                    sample,
+                    t,
+                    clip_denoised=clip_denoised,
+                    denoised_fn=denoised_fn,
+                    model_kwargs=model_kwargs,
+                )
+                model_eps = out['eps']
+                sim_gradient = self.condition_mean(
+                    cond_fn, out, sample, t, 
+                    local_iter = local_iter, model_kwargs=model_kwargs
+                )['gradient'] # If loss, already applied the negative transformation and scaled.
+                
+                noise = th.randn_like(x)
+                sample = sample + out['variance']/2 * (model_eps + sim_gradient) + out['variance'] * noise
+                # TENSORBOARD_LOGGER.log_scalar("Overall_DDPM/Predicted_Mean_xt_L2Norm",out["mean"].reshape(-1).norm(2))
+                # TENSORBOARD_LOGGER.log_scalar("Overall_DDPM/Sample_xt-1_L2Norm",sample.reshape(-1).norm(2))
+                TENSORBOARD_LOGGER.increment()
+        else:
+            out = self.p_mean_variance(
+                model,
+                x,
+                t,
+                clip_denoised=clip_denoised,
+                denoised_fn=denoised_fn,
+                model_kwargs=model_kwargs,
+            )
+            
+            nonzero_mask = (
+                (t != 0).float().view(-1, *([1] * (len(x.shape) - 1)))
+            )  # no noise when t == 0
+            
+            noise = th.randn_like(x)
+            sample = out["mean"] + nonzero_mask * th.exp(0.5 * out["log_variance"]) * noise
+
+        return {"sample": sample, "pred_xstart": out["pred_xstart"]}
+    
+    def p_mcmc_sample_loop_progressive(
+        self,
+        model:nn.Module,
+        shape:Tuple,
+        noise:Optional[th.Tensor]=None,
+        clip_denoised=False,
+        denoised_fn=None,
+        cond_fn=None,
+        model_kwargs=None,
+        device=None,
+        progress=False,
+        temp=1.0,
+    ):
+        """
+        Generate samples from the model and yield intermediate samples from
+        each timestep of diffusion.
+
+        Arguments are the same as p_sample_loop().
+        Returns a generator over dicts, where each dict is the return value of
+        p_sample().
+        """
+        if device is None:
+            device = next(model.parameters()).device
+        assert isinstance(shape, (tuple, list))
+        if noise is not None:
+            img = noise.to(device)
+        else:
+            img = th.randn(*shape, device=device) * temp
+        indices = list(range(self.num_timesteps))[::-1]
+
+        if progress:
+            # Lazy import so that we don't depend on tqdm.
+            from tqdm.auto import tqdm
+
+            indices = tqdm(indices)
+
+        for i in indices:
+            t = th.tensor([i] * shape[0], device=device)
+            with th.no_grad():
+                out = self.p_mcmc_sample(
+                    model,
+                    img,
+                    t,
+                    clip_denoised=clip_denoised,
+                    denoised_fn=denoised_fn,
+                    cond_fn=cond_fn,
+                    model_kwargs=model_kwargs,
+                )
+                yield self.unscale_out_dict(out)
+                img = out["sample"]
+                
+    def ddim_mcmc_sample(
+        self,
+        model:nn.Module,
+        x:th.Tensor,
+        t:th.Tensor,
+        clip_denoised=False,
+        denoised_fn=None,
+        cond_fn=None,
+        model_kwargs=None,
+        eta=0.0,
+    ):
+        """
+        Sample x_{t-1} from the model using DDIM.
+
+        Same usage as p_sample().
+        """
+        if cond_fn is not None and t[0]<=self.condition_threshold:
+            # TENSORBOARD_LOGGER.log_scalar("Overall_DDIM_Original/Eps_Modifier_xt_L2Norm",mean_pred_eps_modifier.reshape(-1).norm(2))
+            # TENSORBOARD_LOGGER.log_scalar("Overall_DDIM_Original/Modified_Predicted_Mean_xt_L2Norm",mean_pred.reshape(-1).norm(2))
+            # TENSORBOARD_LOGGER.log_scalar("Overall_DDIM_Original/Sample_xt-1_L2Norm",sample.reshape(-1).norm(2))
+            # TENSORBOARD_LOGGER.log_scalar("Overall_DDIM_Original/Eps_L2Norm",out['eps'].reshape(-1).norm(2))
+            sample = x
+            for local_iter in tqdm(range(self.k),desc = f"Current iter {t[0].item()}",position=1,leave=False):
+                out = self.p_mean_variance(
+                    model,
+                    sample,
+                    t,
+                    clip_denoised=clip_denoised,
+                    denoised_fn=denoised_fn,
+                    model_kwargs=model_kwargs,
+                )
+                
+                conditioned_out = self.condition_score(
+                    cond_fn, out, sample, t, 
+                    local_iter = local_iter, model_kwargs=model_kwargs
+                )
+                # Equation 12.
+                noise = th.randn_like(x)
+                sample = sample + out['variance']/2 * (out['eps'] + conditioned_out['gradient']) + out['variance'] * noise
+                # TENSORBOARD_LOGGER.log_scalar("Overall_DDIM/Eps_L2Norm",out['eps'].reshape(-1).norm(2))
+                # TENSORBOARD_LOGGER.log_scalar("Overall_DDIM/Eps_Modifier_xt_L2Norm",mean_pred_eps_modifier.reshape(-1).norm(2))
+                # TENSORBOARD_LOGGER.log_scalar("Overall_DDIM/Modified_Predicted_Mean_xt_L2Norm",mean_pred.reshape(-1).norm(2))
+                # TENSORBOARD_LOGGER.log_scalar("Overall_DDIM/Sample_xt-1_L2Norm",sample.reshape(-1).norm(2))
+                TENSORBOARD_LOGGER.increment()
+        else:
+            out = self.p_mean_variance(
+                model,
+                x,
+                t,
+                clip_denoised=clip_denoised,
+                denoised_fn=denoised_fn,
+                model_kwargs=model_kwargs,
+            )
+            alpha_bar = _extract_into_tensor(self.alphas_cumprod, t, x.shape)
+            alpha_bar_prev = _extract_into_tensor(self.alphas_cumprod_prev, t, x.shape)
+            sigma = (
+                eta
+                * th.sqrt((1 - alpha_bar_prev) / (1 - alpha_bar))
+                * th.sqrt(1 - alpha_bar / alpha_bar_prev)
+            )
+            # Equation 12.
+            noise = th.randn_like(x)
+            mean_pred_eps_modifier = th.sqrt(1 - alpha_bar_prev - sigma**2) * out['eps']
+            mean_pred = (
+                out["pred_xstart"] * th.sqrt(alpha_bar_prev)
+                + mean_pred_eps_modifier
+            )
+            nonzero_mask = (
+                (t != 0).float().view(-1, *([1] * (len(x.shape) - 1)))
+            )  # no noise when t == 0
+            sample = mean_pred + nonzero_mask * sigma * noise
+        
+        return {"sample": sample, "pred_xstart": out["pred_xstart"]}
+    
+    def ddim_mcmc_sample_loop_progressive(
+        self,
+        model:nn.Module,
+        shape:Tuple,
+        noise=None,
+        clip_denoised=False,
+        denoised_fn=None,
+        cond_fn=None,
+        model_kwargs=None,
+        device=None,
+        progress=False,
+        eta=0.0,
+        temp=1.0,
+    ):
+        """
+        Use DDIM to sample from the model and yield intermediate samples from
+        each timestep of DDIM.
+
+        Same usage as p_sample_loop_progressive().
+        """
+        if device is None:
+            device = next(model.parameters()).device
+        assert isinstance(shape, (tuple, list))
+        if noise is not None:
+            img = noise.to(device)
+        else:
+            img = th.randn(*shape, device=device) * temp
+        indices = list(range(self.num_timesteps))[::-1]
+
+        if progress:
+            # Lazy import so that we don't depend on tqdm.
+            from tqdm.auto import tqdm
+
+            indices = tqdm(indices)
+
+        for i in indices:
+            t = th.tensor([i] * shape[0], device=device)
+            with th.no_grad():
+                out = self.ddim_mcmc_sample(
+                    model,
+                    img,
+                    t,
+                    clip_denoised=clip_denoised,
+                    denoised_fn=denoised_fn,
+                    cond_fn=cond_fn,
+                    model_kwargs=model_kwargs,
+                    eta=eta,
+                )
+                yield self.unscale_out_dict(out)
+                img = out["sample"]
     # endregion

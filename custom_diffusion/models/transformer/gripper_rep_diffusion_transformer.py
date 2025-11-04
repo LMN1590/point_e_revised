@@ -6,7 +6,7 @@ from typing import List, Tuple, Optional, Dict, Any, Iterable
 
 from ..blocks.mlp import MLP
 from ..blocks.base_transformer import Transformer
-from ..blocks.timestep_embedding import timestep_embedding
+from ..blocks.timestep_embedding import timestep_embedding,finger_segment_geo_embedding
 
 class GripperRepDiffusionTransformer(nn.Module):
     # region Initialization
@@ -29,6 +29,12 @@ class GripperRepDiffusionTransformer(nn.Module):
         self.n_ctx = n_ctx
         self.time_token_cond = time_token_cond
         self.cond_drop_prob = cond_drop_prob
+        
+        self.num_fingers = None
+        self.max_num_segments = None
+        self.gripper_dim = None
+        self.total_dim = None
+        self.gripper_pos_encoding = None
         
         self.object_encoder = self._init_object_encoder()
         
@@ -68,6 +74,27 @@ class GripperRepDiffusionTransformer(nn.Module):
     
     def _init_object_encoder(self):
         return None
+    
+    def _init_fingers_topo(
+        self,
+        gripper_dim: int = 10,
+        max_num_segments: int = 10,
+        num_fingers: int = 4
+    ):
+        self.finger_dim = gripper_dim
+        self.total_dim = gripper_dim + 1
+        self.max_num_segments = max_num_segments
+        self.num_fingers = num_fingers
+        
+        assert self.n_ctx == self.num_fingers*self.max_num_segments
+        assert self.input_channels == self.total_dim
+        
+        self.gripper_pos_encoding = finger_segment_geo_embedding(
+            self.num_fingers,
+            self.max_num_segments,
+            self.total_dim
+        ) # TC
+        
     # endregion
             
     def cached_model_kwargs(self, batch_size: int, model_kwargs: Dict[str, Any]) -> Dict[str, Any]:
@@ -109,7 +136,10 @@ class GripperRepDiffusionTransformer(nn.Module):
     def _forward_with_cond(
         self, x: torch.Tensor, cond_as_token: List[Tuple[torch.Tensor, bool]]
     ) -> torch.Tensor:
-        h = self.input_proj(x.permute(0, 2, 1))  # BCT -> BTC
+        assert self.gripper_pos_encoding is not None
+        h = x + self.gripper_pos_encoding[None,:,:].permute(0,2,1).to(x) # BCT
+        
+        h = self.input_proj(h.permute(0, 2, 1))  # BCT -> BTC
         for emb, as_token in cond_as_token:
             if not as_token: h = h + emb[:, None] # emb [N,Width]
         

@@ -8,7 +8,12 @@ from point_e.diffusion.gaussian_diffusion import GaussianDiffusion
 from logger import TENSORBOARD_LOGGER,CSVLOGGER
 
 class BaseCond:
-    def __init__(self, name:str, grad_scale:float, calc_gradient:bool = False, grad_clamp:float = 1e-2,logging_bool:bool=True,**kwargs):
+    def __init__(
+        self, name:str, 
+        grad_scale:float, calc_gradient:bool = False, grad_clamp:float = 1e-2,
+        logging_bool:bool=True,
+        **kwargs
+    ):
         self.name = name
         self.calc_gradient = calc_gradient
         self.grad_scale = grad_scale

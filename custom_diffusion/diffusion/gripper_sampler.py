@@ -16,7 +16,7 @@ class GripperSampler:
         self,
         device: torch.device,
         models: Sequence[nn.Module],
-        diffusions: Sequence[Union[GaussianDiffusion,SpacedDiffusion]],
+        diffusions: List[Union[GaussianDiffusion,SpacedDiffusion]],
         model_kwargs_key_filter: Sequence[CONDITIONING_KEY] = ("embeddings",),
         guidance_scale: Sequence[float] = (3.0,),
         clip_denoised: bool = True,
@@ -40,10 +40,17 @@ class GripperSampler:
         self.models = models
         self.diffusions = diffusions
         
-        self.finger_dim = gripper_dim
+        self.gripper_dim = gripper_dim
         self.total_dim = gripper_dim + 1
         self.max_num_segments = max_num_segments
         self.num_fingers = num_fingers
+        
+        for model in self.models:
+            if hasattr(model, "_init_fingers_topo"): model._init_fingers_topo(
+                gripper_dim = self.gripper_dim,
+                max_num_segments = self.max_num_segments,
+                num_fingers = self.num_fingers
+            )
         
         self._validate_params()
     
@@ -111,7 +118,7 @@ class GripperSampler:
             if stage_guidance_scale:
                 model = self._uncond_guide_model(model, stage_guidance_scale)
                 internal_batch_size *= 2
-            sample_loop_progressive = diffusion.p_sample_loop_progressive if self.sampling_mode =='ddpm' else diffusion.ddim_sample_loop_progressive
+            sample_loop_progressive = diffusion.p_mcmc_sample_loop_progressive if self.sampling_mode =='ddpm' else diffusion.ddim_mcmc_sample_loop_progressive
             # If unconditional guidance is used, double the batch size: (2B, dims, segments_fingers)
             
             samples_it = sample_loop_progressive(
