@@ -7,6 +7,7 @@ from typing import List, Tuple, Optional, Dict, Any, Iterable
 from ..blocks.mlp import MLP
 from ..blocks.base_transformer import Transformer
 from ..blocks.timestep_embedding import timestep_embedding,finger_segment_geo_embedding
+from ..object_encoder import EncoderPlaceholder
 
 class GripperRepDiffusionTransformer(nn.Module):
     # region Initialization
@@ -24,6 +25,7 @@ class GripperRepDiffusionTransformer(nn.Module):
         # portion for object encoding
     ):
         super().__init__()
+        self.device = device
         self.input_channels = input_channels
         self.output_channels = output_channels
         self.n_ctx = n_ctx
@@ -48,7 +50,7 @@ class GripperRepDiffusionTransformer(nn.Module):
             nn.LayerNorm(
                 normalized_shape=self.object_encoder.feature_dim, device=device, dtype=dtype
             ),
-            nn.Linear(self.object_encoder.feature_dim, self.backbone.width, device=device, dtype=dtype),
+            nn.Linear(self.object_encoder.feature_dim, width, device=device, dtype=dtype),
         )
         
         self.backbone = Transformer(
@@ -65,15 +67,15 @@ class GripperRepDiffusionTransformer(nn.Module):
         self.output_proj_gripper = nn.Linear(width, output_channels-2,device=device,dtype=dtype)
         self.output_proj_mask = nn.Linear(width,2,device=device,dtype=dtype)
         
-        # with torch.no_grad():
-        #     self.output_proj_gripper.weight.zero_()
-        #     self.output_proj_gripper.bias.zero_()
+        with torch.no_grad():
+            self.output_proj_gripper.weight.zero_()
+            self.output_proj_gripper.bias.zero_()
             
-        #     self.output_proj_mask.weight.zero_()
-        #     self.output_proj_mask.bias.zero_()
+            self.output_proj_mask.weight.zero_()
+            self.output_proj_mask.bias.zero_()
     
     def _init_object_encoder(self):
-        return None
+        return EncoderPlaceholder().to(self.device)
     
     def _init_fingers_topo(
         self,
@@ -101,9 +103,9 @@ class GripperRepDiffusionTransformer(nn.Module):
         # _ = batch_size
         with torch.no_grad():
             return dict(
-                embeddings=self.object_encoder.encode(
-                    model_kwargs["objects"],batch_size
-                ) # [B,feature_dim,T]
+                embeddings=self.object_encoder(
+                    model_kwargs["objects"]
+                ).to(self.device) # [B,feature_dim,T]
             )
         
     def forward(
@@ -119,7 +121,7 @@ class GripperRepDiffusionTransformer(nn.Module):
         """
         assert embeddings is not None, "must specify embeddings"
         assert x.shape[-1] == self.n_ctx
-        
+        breakpoint()
         t_embed = self.time_embed(timestep_embedding(t, self.backbone.width))
         object_encoded = embeddings
         
@@ -149,7 +151,7 @@ class GripperRepDiffusionTransformer(nn.Module):
             if as_token
         ] # [N, 1, Width]
         if len(extra_tokens): h = torch.cat(extra_tokens + [h], dim=1) # [N, E+C , W]
-
+        
         h = self.ln_pre(h)
         h = self.backbone(h)
         h = self.ln_post(h)
@@ -160,8 +162,8 @@ class GripperRepDiffusionTransformer(nn.Module):
         gripper_h = self.output_proj_gripper(h)
         mask_h = self.output_proj_mask(h)
         return torch.cat([
-            gripper_h[:,:(self.output_channels-2)//2,:],
-            mask_h[:,:1,:],
-            gripper_h[:,(self.output_channels-2)//2:,:],
-            mask_h[:,1:,:],
+            gripper_h[:,:,:(self.output_channels-2)//2],
+            mask_h[:,:,:1],
+            gripper_h[:,:,(self.output_channels-2)//2:],
+            mask_h[:,:,1:],
         ],dim=-1).permute(0, 2, 1) # BCT
