@@ -4,8 +4,8 @@ import numpy as np
 from typing import Dict
 
 from config.config_dataclass import ConditioningConfig
-from point_e.diffusion.gaussian_diffusion import GaussianDiffusion
-from logger import TENSORBOARD_LOGGER,CSVLOGGER
+from custom_diffusion.diffusion.gaussian_diffusion import GaussianDiffusion
+# from logger import TENSORBOARD_LOGGER,CSVLOGGER
 
 class BaseCond:
     def __init__(
@@ -53,17 +53,17 @@ class BaseCond:
                     cur_grad = torch.autograd.grad(loss, x)[0]
                     accum_grad[i,:3] = cur_grad[i,:3]
                 
-                if self.logging_bool:
-                    CSVLOGGER.log({
-                        "phase": self.name,
+                # if self.logging_bool:
+                #     CSVLOGGER.log({
+                #         "phase": self.name,
                         
-                        "sampling_step": t_sample,
-                        "local_iter": local_iter,
-                        "batch_idx": i,
+                #         "sampling_step": t_sample,
+                #         "local_iter": local_iter,
+                #         "batch_idx": i,
                         
-                        'loss': loss.item(),
-                        'grad_norm':0. if not self.calc_gradient else cur_grad.norm(2).item()
-                    })
+                #         'loss': loss.item(),
+                #         'grad_norm':0. if not self.calc_gradient else cur_grad.norm(2).item()
+                #     })
                 if torch.is_tensor(loss):
                     loss = loss.item()
                 cur_loss.append(loss)
@@ -73,20 +73,20 @@ class BaseCond:
         self.loss_lst.append(cur_loss)
         scaled_gradient = torch.clamp(-accum_grad*self.grad_scale,min = -self.grad_clamp,max=self.grad_clamp)
 
-        if self.logging_bool:
-            TENSORBOARD_LOGGER.log_scalar(f"{self.name}/All_Batch_Loss",cur_loss.mean())
-            TENSORBOARD_LOGGER.log_scalar(f"{self.name}/All_Batch_GradientNorm",scaled_gradient.reshape(-1).norm(2))
+        # if self.logging_bool:
+            # TENSORBOARD_LOGGER.log_scalar(f"{self.name}/All_Batch_Loss",cur_loss.mean())
+            # TENSORBOARD_LOGGER.log_scalar(f"{self.name}/All_Batch_GradientNorm",scaled_gradient.reshape(-1).norm(2))
             # TENSORBOARD_LOGGER.increment_step()
             
-            CSVLOGGER.log({
-                "phase": f"{self.name}_Overall",
+            # CSVLOGGER.log({
+            #     "phase": f"{self.name}_Overall",
                 
-                "sampling_step": t.tolist()[0],
-                "local_iter": local_iter,
+            #     "sampling_step": t.tolist()[0],
+            #     "local_iter": local_iter,
                 
-                "loss": cur_loss.mean(),
-                "grad_norm":scaled_gradient.reshape(-1).norm(2).item()
-            })    
+            #     "loss": cur_loss.mean(),
+            #     "grad_norm":scaled_gradient.reshape(-1).norm(2).item()
+            # })    
         return scaled_gradient   # negative sign: push mean back toward origin
         
     def calculate_loss(self, x:torch.Tensor,t:torch.Tensor,p_mean_var:Dict[str,torch.Tensor],diffusion:GaussianDiffusion,local_iter:int, **model_kwargs) -> torch.Tensor:

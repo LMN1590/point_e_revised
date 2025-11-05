@@ -121,7 +121,6 @@ class GripperRepDiffusionTransformer(nn.Module):
         """
         assert embeddings is not None, "must specify embeddings"
         assert x.shape[-1] == self.n_ctx
-        breakpoint()
         t_embed = self.time_embed(timestep_embedding(t, self.backbone.width))
         object_encoded = embeddings
         

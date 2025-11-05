@@ -1,8 +1,6 @@
 from typing import TypedDict,List,Optional,Dict,Literal
 
-from sap.config_dataclass import SAPConfig
 from softzoo.configs.config_dataclass import FullConfig
-from point_e.config import PointEConfig
 
 class ConditioningConfig(TypedDict):
     name:str
@@ -31,5 +29,3 @@ class GeneralConfig(TypedDict):
     preload_emb: Dict[Literal['condition_embedding','diffusion_noise','upsample_noise'],EmbeddingConfig]
     
     softzoo_config: FullConfig
-    sap_config: SAPConfig
-    pointe_config: PointEConfig

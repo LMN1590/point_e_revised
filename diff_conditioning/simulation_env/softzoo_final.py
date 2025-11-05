@@ -7,28 +7,25 @@ from yaml import safe_load
 import os
 import shutil
 import json
-from typing import Dict, List, Tuple,Union
-from tqdm import tqdm,trange
+from typing import Dict, List,Union
+from tqdm import trange
 import json
 
 from softzoo.configs.config_dataclass import FullConfig
+from config.config_dataclass import ConditioningConfig
 from softzoo.envs import ENV_CONFIGS_DIR
-from softzoo.utils.logger import Logger
 from softzoo.utils.general_utils import save_pcd_to_mesh
 from .utils.sim_utils import read_fixed_velocity
 
-from point_e.diffusion.gaussian_diffusion import GaussianDiffusion
+from custom_diffusion.diffusion.gaussian_diffusion import GaussianDiffusion
 
 from .env import make_env
 from .loss import make_loss
 
-from .utils.path import CONFIG_DIR,DEFAULT_CFG_DIR
+from .utils.path import DEFAULT_CFG_DIR
 from ..base_cond import BaseCond
 from .designer.encoded_finger.design import EncodedFinger
 from .controllers.custom_finger_rep import CustomFingerRepController
-
-from logger import TENSORBOARD_LOGGER as tensorboard_logger,CSVLOGGER
-import logging
 
 class SoftZooSimulation(BaseCond):
     # region Initialization
@@ -140,8 +137,6 @@ class SoftZooSimulation(BaseCond):
         **model_kwargs
     )->torch.Tensor:
         # x is shaped (B,C,N) => Needs clarification
-        
-        logging.info(f'{self.name}: Start calculating gradients for SoftZoo...')
         x = x.detach().requires_grad_(True)
         B,C,T = x.shape
         cur_loss = []
@@ -150,30 +145,26 @@ class SoftZooSimulation(BaseCond):
         with torch.enable_grad():
             if 'original_ts' in model_kwargs:
                 t = model_kwargs['original_ts']
-            logging.info(f'{self.name}: Start calculate x_0 from x_t')
-            
-            scaled_pred_xstart = diffusion._predict_xstart_from_eps(
+            # breakpoint()
+            unscaled_pred_xstart = diffusion._predict_xstart_from_eps(
                 x,t,
                 p_mean_var['eps']
             )
-            pred_xstart = diffusion.unscale_channels(scaled_pred_xstart) # [B,C,num_finger*num_segments]
+            pred_xstart = diffusion.unscale_channels(unscaled_pred_xstart) # [B,C,num_finger*num_segments]
             gripper_emb = pred_xstart.permute(0,2,1).reshape(B,self.num_fingers,self.max_num_segments,C) # [B,finger,segments,C]
             
-            ctrl_tensors, end_masks = pred_xstart[:,:,:-1], pred_xstart[:,:,:,-1]
+            ctrl_tensors, end_masks = gripper_emb[:,:,:,:-1], gripper_emb[:,:,:,-1]
             
-            for i,t_sample in zip(range(B),t.tolist()):
+            for i,t_sample in zip(range(B//2),t.tolist()):
                 ep_reward,reward_log,design_loss = self.forward_sim(
                     ctrl_tensors[i],
                     end_masks[i],
                     batch_idx=i, sampling_step=t_sample,
                     local_iter=local_iter
                 ) # gripper: cpu(design) -> cuda:0 (env)
-                
-                logging.info(f'{self.name}: Start backwarding simulation for batch_idx {i}')
                 all_loss,grad,grad_name_control = self.backward_sim()
                 
                 if self.calc_gradient:
-                    logging.info(f'{self.name}: Start backpropagating gradients for batch_idx {i}')
                     
                     design_loss.backward(retain_graph=True)
                     self.designer.out_cache['geometry'].backward(gradient=grad[None]['self.env.design_space.buffer.geometry'],retain_graph=True)
@@ -183,7 +174,7 @@ class SoftZooSimulation(BaseCond):
                     
                     if not torch.isnan(x.grad.sum()): accum_grad[i] = x.grad[i].clone()
                     else:
-                        logging.warning(f'{self.name}: NaN gradient detected for batch_idx {i}, setting gradient to zero.')
+                        print(f'{self.name}: NaN gradient detected for batch_idx {i}, setting gradient to zero.')
                     x.grad.zero_()
                         
         scaled_gradient = torch.clamp(-accum_grad*self.grad_scale,min = -self.grad_clamp,max=self.grad_clamp)
@@ -304,3 +295,14 @@ class SoftZooSimulation(BaseCond):
             grad = dict()
         return all_loss,grad,grad_name_control
     # endregion 
+    
+    @classmethod
+    def init_cond(cls,config:ConditioningConfig,softzoo_config:FullConfig,**kwargs)->'SoftZooSimulation':
+        return cls(
+            name = config['name'],
+            config = softzoo_config,
+            grad_scale = config['grad_scale'],
+            grad_clamp = config['grad_clamp'],
+            calc_gradient = config['calc_gradient'],
+            logging_bool = config['logging_bool']
+        )

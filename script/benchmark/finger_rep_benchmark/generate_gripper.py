@@ -26,7 +26,7 @@ def generate_gripper(
         gripper_path = os.path.join(gripper_dir,f'gripper_nf{num_finger}_id{i}.npz')
         np.savez_compressed(
             gripper_path,
-            gripper_emb = raw_tensor[i].cpu().numpy() + noise_gripper[i].cpu().numpy(),
+            gripper_emb = torch.sigmoid(raw_tensor[i] + noise_gripper[i]).cpu().numpy(),
             end_prob = end_prob_mask[i].cpu().numpy() + noise_mask[i].cpu().numpy()
         )
 

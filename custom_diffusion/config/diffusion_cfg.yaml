@@ -24,8 +24,8 @@ DIFFUSION_CONFIGS:
     condition_threshold: 1
   
   custom_finger_diffusion:
-    channel_biases: [-1.0,-1.0,-1.0,-1.0,-1.0,-1.0,-1.0,-1.0,-1.0,-1.0,-1.0]
-    channel_scales: [2.0,2.0,2.0,2.0,2.0,2.0,2.0,2.0,2.0,2.0,2.0]
+    channel_biases: [-1.0,-1.0,-1.0,-1.0,-1.0,-1.0,-1.0,-1.0,-1.0,-1.0,0.0]
+    channel_scales: [2.0,2.0,2.0,2.0,2.0,2.0,2.0,2.0,2.0,2.0,0.005]
     mean_type: epsilon
     schedule: cosine
     timesteps: 1024

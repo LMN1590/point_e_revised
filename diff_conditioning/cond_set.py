@@ -3,18 +3,18 @@ import torch
 from typing import List, Dict,Callable
 
 from config.config_dataclass import ConditioningConfig
-from point_e.diffusion.gaussian_diffusion import GaussianDiffusion
+from custom_diffusion.diffusion.gaussian_diffusion import GaussianDiffusion
 
 from .base_cond import BaseCond
-from .simulation_env import SoftzooSimulation
+from .simulation_env.softzoo_final import SoftZooSimulation
 from .cond_dist_to_origin import OriginDistanceCond
 
-from logger import TENSORBOARD_LOGGER,CSVLOGGER
-import logging
+# from logger import TENSORBOARD_LOGGER,CSVLOGGER
+# import logging
 
 COND_CLS:Dict[str,Callable[...,BaseCond]] = {
     "Dist_To_Origin": OriginDistanceCond.init_cond,
-    "SoftZoo_Sim": SoftzooSimulation.init_cond
+    "SoftZoo_Sim": SoftZooSimulation.init_cond
 }
 
 class CondSet:
@@ -42,7 +42,7 @@ class CondSet:
         
         accum_grad = torch.zeros_like(x)
         for cond_cls in self.cond_cls:
-            logging.info(f"Calculate Gradients for: {cond_cls.name}")
+            # logging.info(f"Calculate Gradients for: {cond_cls.name}")
             accum_grad += cond_cls.calculate_gradient(
                 x= x, t = t,
                 p_mean_var = p_mean_var,
@@ -50,16 +50,16 @@ class CondSet:
                 local_iter=local_iter,
                 **model_kwargs
             )
-        if self.cond_overall_logging:
-            TENSORBOARD_LOGGER.log_scalar("Overall/All_Batch_GradientNorm",accum_grad.reshape(-1).norm(2))
-            # tensorboard_logger.increment_step()
+        # if self.cond_overall_logging:
+        #     TENSORBOARD_LOGGER.log_scalar("Overall/All_Batch_GradientNorm",accum_grad.reshape(-1).norm(2))
+        #     # tensorboard_logger.increment_step()
             
-            CSVLOGGER.log({
-                "phase": "Overall",
+        #     CSVLOGGER.log({
+        #         "phase": "Overall",
                 
-                "sampling_step": t.tolist()[0],
-                "local_iter": local_iter,
+        #         "sampling_step": t.tolist()[0],
+        #         "local_iter": local_iter,
                 
-                "grad_norm":accum_grad.reshape(-1).norm(2).item()
-            })
+        #         "grad_norm":accum_grad.reshape(-1).norm(2).item()
+        #     })
         return accum_grad

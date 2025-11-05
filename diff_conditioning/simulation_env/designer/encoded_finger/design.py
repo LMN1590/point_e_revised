@@ -119,7 +119,7 @@ class EncodedFinger(Base):
                 [segment1, segment2,... segmentN]
             ]
         """
-        ctrl_tensor = torch.sigmoid(ctrl_tensor.to(self.device))
+        ctrl_tensor = ctrl_tensor.to(self.device)
         end_prob_mask = end_prob_mask.to(self.device)
         processed_end_prob_mask = self._filter_segment_encoding(end_prob_mask)
         # processed_end_prob_mask = torch.ones_like(processed_end_prob_mask)
