@@ -3,7 +3,7 @@ import torch
 import os
 
 
-base_path = 'data/grippers_norm/'
+base_path = 'data/grippers/'
 sigmoided_path = 'data/grippers_norm'
 os.makedirs(sigmoided_path,exist_ok=True)
 

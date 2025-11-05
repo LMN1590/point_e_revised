@@ -2,14 +2,24 @@ import torch
 import torch.nn as nn 
 
 from typing import List
+from typing_extensions import TypedDict
 
-class EncoderPlaceholder(nn.Module):
-    def __init__(self):
+class ObjectConfig(TypedDict):
+    name:str
+    quat:List[float]
+    scale:float
+    
+
+class EncoderPlaceholder:
+    def __init__(
+        self
+    ):
         super().__init__()
         self.feature_dim = 128
         self.n_ctx = 100
         
         # self.encoder = nn.Linear(2,2)
     
-    def forward(self,objects:List[str]):
+    def encode(self,objects:List[ObjectConfig]):
+        # TODO: The transformation and point-cloud-rization of the object should be carried out here, an additional cache to save the embeddings would be great as well. TBD
         return torch.zeros((1,self.feature_dim,self.n_ctx))

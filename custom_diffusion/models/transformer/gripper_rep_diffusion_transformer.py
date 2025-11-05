@@ -75,7 +75,7 @@ class GripperRepDiffusionTransformer(nn.Module):
             self.output_proj_mask.bias.zero_()
     
     def _init_object_encoder(self):
-        return EncoderPlaceholder().to(self.device)
+        return EncoderPlaceholder()
     
     def _init_fingers_topo(
         self,
@@ -103,7 +103,7 @@ class GripperRepDiffusionTransformer(nn.Module):
         # _ = batch_size
         with torch.no_grad():
             return dict(
-                embeddings=self.object_encoder(
+                embeddings=self.object_encoder.encode(
                     model_kwargs["objects"]
                 ).to(self.device) # [B,feature_dim,T]
             )
