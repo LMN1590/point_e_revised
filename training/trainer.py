@@ -74,7 +74,7 @@ class DiffusionTrainer(LightningModule):
             device=self.device,
         ).long()
         
-        loss_dict = self.diffusion.training_losses(
+        loss_dict:Dict[str,torch.Tensor] = self.diffusion.training_losses(
             model=self.noise_pred_net,
             x_start = grippers,
             t = timesteps,
@@ -82,9 +82,15 @@ class DiffusionTrainer(LightningModule):
                 "embeddings": object_encoding
             }
         )
-        breakpoint()
-        
-        return None
+        total_loss_dict = {k: v.sum() for k,v in loss_dict.items() if "loss" in k}
+        self.log_dict(
+            {f"train/total_{k}": v for k,v in total_loss_dict.items()},
+            sync_dist=True,
+            on_step = True,
+            on_epoch = True
+        )
+        return total_loss_dict['total_loss']
+    
     def validation_step(self,gripper_data:Dict[str,torch.Tensor],batch_idx:int):
         """
         Args:
