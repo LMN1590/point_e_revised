@@ -104,7 +104,7 @@ class GripperRepDiffusionTransformer(nn.Module):
         with torch.no_grad():
             return dict(
                 embeddings=self.object_encoder.encode(
-                    model_kwargs["objects"]
+                    model_kwargs["objects"], batch_size
                 ).to(self.device) # [B,feature_dim,T]
             )
         
@@ -123,11 +123,11 @@ class GripperRepDiffusionTransformer(nn.Module):
         assert x.shape[-1] == self.n_ctx
         t_embed = self.time_embed(timestep_embedding(t, self.backbone.width))
         object_encoded = embeddings
+        assert object_encoded.shape[0] == x.shape[0]
         
         if self.training:
             mask = torch.rand(size=[len(x)]) >= self.cond_drop_prob
             object_encoded = object_encoded * mask[:, None, None].to(object_encoded)
-        
         object_encoded = object_encoded.permute(0,2,1) # BCT -> BTC
         object_embed = self.object_embed(object_encoded)
         
