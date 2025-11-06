@@ -82,7 +82,6 @@ class DiffusionTrainer(LightningModule):
                 "embeddings": object_encoding
             }
         )
-        breakpoint()
         
         
         return None

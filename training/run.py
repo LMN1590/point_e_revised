@@ -41,7 +41,7 @@ base_model._init_fingers_topo(
 )
 diff_trainer = DiffusionTrainer(
     noise_pred_net=base_model,
-    diffusion_scheduler=base_diffusion,
+    diffusion=base_diffusion,
 )
 trainer = LightningTrainer(
     accelerator='gpu',

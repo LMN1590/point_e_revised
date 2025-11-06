@@ -779,9 +779,9 @@ class GaussianDiffusion:
                 clip_denoised=False,
                 model_kwargs=model_kwargs,
             )
-            terms["loss"] = vb_terms["output"]
+            terms["total_loss"] = vb_terms["output"]
             if self.loss_type == "rescaled_kl":
-                terms["loss"] *= self.num_timesteps
+                terms["total_loss"] *= self.num_timesteps
             extra = vb_terms["extra"]
         elif self.loss_type == "mse" or self.loss_type == "rescaled_mse":
             model_output = model(x_t, t, **model_kwargs)
@@ -800,7 +800,7 @@ class GaussianDiffusion:
                 # Learn the variance using the variational bound, but don't let
                 # it affect our mean prediction.
                 frozen_out = th.cat([model_output.detach(), model_var_values], dim=1)
-                terms["vb"] = self._vb_terms_bpd(
+                terms["vb_loss"] = self._vb_terms_bpd(
                     model=lambda *args, r=frozen_out: r,
                     x_start=x_start,
                     x_t=x_t,
@@ -810,7 +810,7 @@ class GaussianDiffusion:
                 if self.loss_type == "rescaled_mse":
                     # Divide by 1000 for equivalence with initial implementation.
                     # Without a factor of 1/1000, the VB term hurts the MSE term.
-                    terms["vb"] *= self.num_timesteps / 1000.0
+                    terms["vb_loss"] *= self.num_timesteps / 1000.0
 
             target = {
                 "x_prev": self.q_posterior_mean_variance(x_start=x_start, x_t=x_t, t=t)[0],
@@ -818,18 +818,18 @@ class GaussianDiffusion:
                 "epsilon": noise,
             }[self.model_mean_type]
             assert model_output.shape == target.shape == x_start.shape
-            terms["mse"] = mean_flat((target - model_output) ** 2)
+            terms["mse_loss"] = mean_flat((target - model_output) ** 2)
             if "vb" in terms:
-                terms["loss"] = terms["mse"] + terms["vb"]
+                terms["total_loss"] = terms["mse_loss"] + terms["vb_loss"]
             else:
-                terms["loss"] = terms["mse"]
+                terms["total_loss"] = terms["mse_loss"]
         else:
             raise NotImplementedError(self.loss_type)
 
         if "losses" in extra:
             terms.update({k: loss for k, (loss, _scale) in extra["losses"].items()})
             for loss, scale in extra["losses"].values():
-                terms["loss"] = terms["loss"] + loss * scale
+                terms["total_loss"] = terms["total_loss"] + loss * scale
 
         return terms
     
