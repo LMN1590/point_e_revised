@@ -19,9 +19,13 @@ class DiffusionTrainer(LightningModule):
         
         ema_power:float = 0.75,
         ema_update_after_step:int = 0,
+        
+        learning_rate: float = 1e-4,
+        lr_warmup_steps: int = 0,
+        
+        num_epochs:int = 1000
     ):
         super().__init__()
-        
         if os.environ.get("TORCH_COMPILE", "0") == "0":
             self.ema_nets = nn.ModuleDict(
                 {
@@ -41,6 +45,11 @@ class DiffusionTrainer(LightningModule):
             update_after_step=ema_update_after_step,
         )
         
+        self.learning_rate= learning_rate
+        self.lr_warmup_steps = lr_warmup_steps
+        
+        self.num_epochs = num_epochs
+        
     @property
     def noise_pred_net(self) -> GripperRepDiffusionTransformer:
         return typing.cast(
@@ -49,8 +58,12 @@ class DiffusionTrainer(LightningModule):
         
     
     def training_step(self,gripper_embeddings:torch.Tensor,batch_idx):
-        print(gripper_embeddings)
+        return None
+    def validation_step(self,gripper_embeddings:torch.Tensor,batch_idx):
+        return None
     
-    # def validation_step(self, *args: Any, **kwargs: Any) -> Tensor | Mapping[str, Any] | None:
-    #     return super().validation_step(*args, **kwargs)
+    def configure_optimizers(self):
+        self.optimizer = torch.optim.AdamW(self.ema_nets.parameters(),lr = self.learning_rate)
+        self.lr_scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(self.optimizer,T_max=self.num_epochs,eta_min=0.0)
+        return [self.optimizer], [self.lr_scheduler]
     
