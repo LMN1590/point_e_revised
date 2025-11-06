@@ -82,7 +82,7 @@ class DiffusionTrainer(LightningModule):
                 "embeddings": object_encoding
             }
         )
-        
+        breakpoint()
         
         return None
     def validation_step(self,gripper_data:Dict[str,torch.Tensor],batch_idx:int):
