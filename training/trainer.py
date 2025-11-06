@@ -60,7 +60,10 @@ class DiffusionTrainer(LightningModule):
     def training_step(self,gripper_data:Dict[str,torch.Tensor],batch_idx:int):
         """
         Args:
-            gripper_data (Dict[str,torch.Tensor]): 2 keys 'grippers' - [B,sample,gripper_dim_mask,finger*segments] and 'object_embeddings' - [B,1,feature_dim,n_ctx]
+            gripper_data (Dict[str,torch.Tensor]): 3 keys 
+                'grippers' - [B,sample,gripper_dim_mask,finger*segments]
+                'object_embeddings' - [B,sample,feature_dim,n_ctx]
+                'weights' - [B,sample]
             batch_idx (int): Index of current batch
         """
         B,S = gripper_data['grippers'].shape[:2]
