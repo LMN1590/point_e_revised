@@ -2,6 +2,8 @@ import numpy as np
 import torch
 from torch.utils.data import Dataset,DataLoader
 
+from typing import Literal
+
 import math
 import pandas as pd
 from typing import List
@@ -27,15 +29,9 @@ class GripperDataset(Dataset):
     
     Output per sample:
         {
-            "gripper_emb": Tensor[1,feature_dim,n_ctx],
-            "grippers":[
-                {
-                    "end_prob_mask": Tensor,
-                    "object_emb": Tensor
-                },
-                ....
-            ]
-            
+            "grippers": Gripper Encoding + End Prob Mask value - [sample, gripper_dim_mask, finger*segments]
+            "object_embedding": Embeddings of objects - [sample,feature_dim, n_ctx]
+            "weights": The sampling weight based on the gripper performance - [sample]
         }
         
     Process:
@@ -48,7 +44,7 @@ class GripperDataset(Dataset):
     
     def __init__(
         self,csv_path:str,
-        object_encoder: EncoderPlaceholder,
+        object_encoder_name: Literal['placeholder'],
         max_cond_obj: int,
         
         gripper_dir:str,
@@ -56,7 +52,7 @@ class GripperDataset(Dataset):
     ):
         super().__init__()
         self.df = pd.read_csv(csv_path)
-        self.object_encoder = object_encoder
+        self.object_encoder = self._init_obj_encoder(object_encoder_name)
         self.max_cond_obj = max_cond_obj
         
         self.gripper_dir = gripper_dir
@@ -77,6 +73,10 @@ class GripperDataset(Dataset):
             for _, row in df_unique.iterrows()
         ]
         return object_configs, set(self.df["index"].unique())
+    def _init_obj_encoder(self,object_encoder_name:Literal['placeholder']):
+        if object_encoder_name == 'placeholder':
+            return EncoderPlaceholder()
+        else: raise NotImplementedError(f"This Object Encoder, {object_encoder_name}, has not been implemented")
     
     def __len__(self):
         return sum(math.comb(len(self.object_set), i) for i in range(1, self.max_cond_obj+1))
@@ -126,7 +126,7 @@ class GripperDataset(Dataset):
 if __name__ == "__main__":
     ds = GripperDataset(
         csv_path='data/grippers/data.csv',
-        object_encoder=EncoderPlaceholder(),
+        object_encoder_name = 'placeholder',
         max_cond_obj = 1,
         gripper_dir='data/grippers/',
         gripper_per_sample=10
