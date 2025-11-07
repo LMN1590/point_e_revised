@@ -72,6 +72,9 @@ class TrainConfig(TypedDict):
     log_every_n_steps:int
     max_epochs:int
     default_root_dir:str
+    gradient_clip_val: float
+    gradient_clip_algorithm: str
+    num_sanity_val_steps: int
     
     dl_batch_size:int
     dl_num_workers:int
@@ -82,9 +85,10 @@ class TrainConfig(TypedDict):
 def train(config:TrainConfig,existing_ckpt_path:Optional[str] = None,id:Optional[str] = None):
     default_log_dir = os.path.join(
         config['default_root_dir'],
-        f"{config['exp_name']}",
-        f'version_{id}'
+        config['exp_name'],
+        str(id)
     )
+    os.makedirs(default_log_dir,exist_ok=True)
     ds = GripperDataset(**config['dataset_config'])
     dl = DataLoader(
         ds,
@@ -107,9 +111,9 @@ def train(config:TrainConfig,existing_ckpt_path:Optional[str] = None,id:Optional
     
     callbacks = [
         CALLBACKS[k](
-            **(v|{
+            **(v|({
                 "dirpath": os.path.join(default_log_dir,'checkpoints')
-            } if k == 'ModelCheckpoint' else {})
+            } if k == 'ModelCheckpoint' else {}))
         ) for k,v in config['callbacks_config'].items() if k in CALLBACKS.keys()
     ]
     
@@ -118,23 +122,23 @@ def train(config:TrainConfig,existing_ckpt_path:Optional[str] = None,id:Optional
     for log_type in config['logger_type']:
         if log_type == 'tensorboard':
             loggers.append(TensorBoardLogger(
-                save_dir=default_log_dir,
-                name = f"tensorboard_log_{config['exp_name']}",
+                save_dir=config['default_root_dir'],
+                name = config['exp_name'],
                 version = id,
             ))
         elif log_type == 'wandb':
             loggers.append(WandbLogger(
-                save_dir = default_log_dir,
+                save_dir=config['default_root_dir'],
                 
                 name = config['exp_name'],
                 version = id,
-                project = f"wandb_log_{config['exp_name']}",                
+                project = "Gripper Diffusion",                
             ))
         elif log_type == 'csv':
             loggers.append(CSVLogger(
-                save_dir=default_log_dir,
-                name = f"csv_log_{config['exp_name']}",
-                version=id
+                save_dir=config['default_root_dir'],
+                name = config['exp_name'],
+                version = id,
             ))
             
     
@@ -146,7 +150,10 @@ def train(config:TrainConfig,existing_ckpt_path:Optional[str] = None,id:Optional
         max_epochs=config['max_epochs'],
         default_root_dir=default_log_dir,
         callbacks=callbacks,
-        logger=loggers
+        logger=loggers,
+        gradient_clip_val = config['gradient_clip_val'],
+        gradient_clip_algorithm = config['gradient_clip_algorithm'],
+        num_sanity_val_steps = config['num_sanity_val_steps']
     )
     
     if existing_ckpt_path is not None:

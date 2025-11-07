@@ -91,14 +91,15 @@ class DiffusionTrainer(LightningModule):
                 "embeddings": object_encoding
             }
         )
-        total_loss_dict = {k: v.sum() for k,v in loss_dict.items() if "loss" in k}
+        mean_loss_dict = {k: v.mean() for k,v in loss_dict.items() if "loss" in k}
         self.log_dict(
-            {f"train/total_{k}": v for k,v in total_loss_dict.items()},
+            {f"train/mean_{k}": v for k,v in mean_loss_dict.items()},
             sync_dist=True,
             on_step = True,
-            on_epoch = True
+            on_epoch = True,
+            # prog_bar=True
         )
-        return total_loss_dict['total_loss']
+        return mean_loss_dict['total_loss']
     
     def validation_step(self,gripper_data:Dict[str,torch.Tensor],batch_idx:int):
         """
@@ -109,7 +110,7 @@ class DiffusionTrainer(LightningModule):
                 'weights' - [B,sample]
             batch_idx (int): Index of current batch
         """
-        B,S,C,T = gripper_data['grippers'].shape[:2]
+        B,S,C,T = gripper_data['grippers'].shape
         grippers = gripper_data['grippers'].flatten(0,1) # [B*sample_size, gripper_dim_mask, finger*segments ~ n_ctx]
         scaled_grippers = self.diffusion.scale_channels(grippers)
         
@@ -122,7 +123,7 @@ class DiffusionTrainer(LightningModule):
         sample_weights = sample_weights_norm.flatten(0,1) # [B*sample]
         
         noise = torch.randn(scaled_grippers.shape,device=self.device) # [B*sample_size, gripper_dim_mask, finger*segments ~ n_ctx]
-        original_timesteps = self.diffusion.num_timesteps * torch.ones((B*S,),dtype=torch.int64,device=self.device)
+        original_timesteps = (self.diffusion.num_timesteps-1) * torch.ones((B*S,),dtype=torch.int64,device=self.device)
         sample = self.diffusion.q_sample(scaled_grippers,original_timesteps,noise)
         
         noise_pred_loss = 0.0
@@ -154,23 +155,22 @@ class DiffusionTrainer(LightningModule):
                         raise NotImplementedError(f"The current model variance type {self.diffusion.model_var_type} has not been implemented")
                 else:
                     raise NotImplementedError(f"The current model variance type {self.diffusion.model_var_type} has not been implemented")
-                
                 cur_mse_loss = ((model_mean - noise)**2).flatten(1).mean(1) * sample_weights / B # [B*sample]
                 noise_pred_loss += cur_mse_loss.sum().item()
-                
+
         noise_pred_loss /= self.diffusion.num_timesteps
         final_sample_loss = ((sample - scaled_grippers) ** 2).flatten(1).mean(1) * sample_weights / B
         accuracy = torch.mean(torch.abs(sample - scaled_grippers) < self.acc_threshold, dtype=torch.float)
-        
         self.log_dict(
             {
                 "val/noise_pred_loss": noise_pred_loss,
-                "val/final_sample_loss": final_sample_loss,
+                "val/final_sample_loss": final_sample_loss.sum().item(),
                 "val/accuracy": accuracy,
             },
             sync_dist=True,
             on_step=True,
             on_epoch=True,
+            prog_bar = True
         )
         
     
@@ -193,6 +193,10 @@ class DiffusionTrainer(LightningModule):
         self.log(
             "train/ema_decay",
             self.ema.decay,
+            sync_dist=True,
+            on_step=True,
+            on_epoch=True,
+            prog_bar = True
         )
 
     def on_load_checkpoint(self, checkpoint: Dict[str, Any]) -> None:

@@ -1,0 +1,1 @@
+python -m training.run --train_config_path default.yaml

@@ -1,7 +1,7 @@
 .venv/
 __pycache__/
 *_cache/
-logs/
+*logs/
 csv_output/
 local/
 runs/
