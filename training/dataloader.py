@@ -119,7 +119,7 @@ class GripperDataset(Dataset):
         return {
             "grippers":torch.stack(gripper_data_total),
             "object_embedding": self.object_encoder.encode(chosen_objs,self.gripper_per_sample),
-            "weights": torch.from_numpy(weights[chosen_gripper_idx])
+            "weights": torch.from_numpy(np.array(weights[chosen_gripper_idx]))
         }
         
 
