@@ -6,6 +6,7 @@ import numpy as np
 from typing import Any,Dict,Mapping
 import typing
 import os
+from tqdm import tqdm
 
 from diffusers.training_utils import EMAModel
 

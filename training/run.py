@@ -60,8 +60,10 @@ class DatasetConfig(TypedDict):
 class TrainConfig(TypedDict):
     exp_name:str
     
+    train_dataset_config:DatasetConfig
+    val_dataset_config:DatasetConfig
+    
     diffusion_config:DiffusionTrainerConfig
-    dataset_config:DatasetConfig
     gripper_config:GripperConfig
     
     callbacks_config:Dict[str,Dict]
@@ -89,9 +91,16 @@ def train(config:TrainConfig,existing_ckpt_path:Optional[str] = None,id:Optional
         str(id)
     )
     os.makedirs(default_log_dir,exist_ok=True)
-    ds = GripperDataset(**config['dataset_config'])
-    dl = DataLoader(
-        ds,
+    train_ds = GripperDataset(**config['train_dataset_config'])
+    train_dl = DataLoader(
+        train_ds,
+        batch_size = config['dl_batch_size'],
+        num_workers= config['dl_num_workers'],
+        shuffle=True, drop_last=False
+    )
+    val_ds = GripperDataset(**config['val_dataset_config'])
+    val_dl = DataLoader(
+        val_ds,
         batch_size = config['dl_batch_size'],
         num_workers= config['dl_num_workers'],
         shuffle=True, drop_last=False
@@ -158,9 +167,9 @@ def train(config:TrainConfig,existing_ckpt_path:Optional[str] = None,id:Optional
     
     if existing_ckpt_path is not None:
         print('loading diffusion checkpoint from', existing_ckpt_path)
-        trainer.fit(diff_trainer,dl,dl,ckpt_path=existing_ckpt_path)
+        trainer.fit(diff_trainer,train_dl,val_dl,ckpt_path=existing_ckpt_path)
     else:
-        trainer.fit(diff_trainer,dl,dl)
+        trainer.fit(diff_trainer,train_dl,val_dl)
 
 if __name__ == "__main__":
     import argparse

@@ -3,16 +3,22 @@ exp_name: debug
 diffusion_config:
   ema_power: 0.75
   ema_update_after_step: 0
-  learning_rate: !!float 1e-4
+  learning_rate: !!float 1e-3
   lr_warmup_steps: 0
   acc_threshold: 0.01
 
-dataset_config:
+train_dataset_config:
   csv_path: 'data/grippers/data.csv'
   object_encoder_name: placeholder
   max_cond_obj: 1
   gripper_dir: data/grippers/
-  gripper_per_sample: 25
+  gripper_per_sample: 50
+val_dataset_config:
+  csv_path: 'data/grippers/data.csv'
+  object_encoder_name: placeholder
+  max_cond_obj: 1
+  gripper_dir: data/grippers/
+  gripper_per_sample: 10
 
 gripper_config:
   num_fingers: 4
@@ -37,7 +43,7 @@ callbacks_config:
   EarlyStopping:
     monitor: "val/noise_pred_loss"
     min_delta: 0.0
-    patience: 20
+    patience: 50
     verbose: false
     mode: min
 
