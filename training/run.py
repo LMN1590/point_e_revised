@@ -15,7 +15,7 @@ from pytorch_lightning.loggers.csv_logs import CSVLogger
 from typing import List,Literal,Optional,Dict
 from typing_extensions import TypedDict
 import os
-from datetime import datetime
+from datetime import date
 
 from .trainer import DiffusionTrainer
 from .dataloader import GripperDataset
@@ -79,8 +79,12 @@ class TrainConfig(TypedDict):
     noise_pred_net:str
     diffusion_type:str
 
-def train(config:TrainConfig,existing_ckpt_path:Optional[str] = None):
-    default_log_dir = os.path.join(config['default_root_dir'],f"{config['exp_name']}_{datetime.now()}")
+def train(config:TrainConfig,existing_ckpt_path:Optional[str] = None,id:Optional[str] = None):
+    default_log_dir = os.path.join(
+        config['default_root_dir'],
+        f"{config['exp_name']}",
+        f'version_{id}'
+    )
     ds = GripperDataset(**config['dataset_config'])
     dl = DataLoader(
         ds,
@@ -116,17 +120,21 @@ def train(config:TrainConfig,existing_ckpt_path:Optional[str] = None):
             loggers.append(TensorBoardLogger(
                 save_dir=default_log_dir,
                 name = f"tensorboard_log_{config['exp_name']}",
+                version = id,
             ))
         elif log_type == 'wandb':
             loggers.append(WandbLogger(
+                save_dir = default_log_dir,
+                
                 name = config['exp_name'],
-                project = f"wandb_log_{config['exp_name']}",
-                save_dir = default_log_dir
+                version = id,
+                project = f"wandb_log_{config['exp_name']}",                
             ))
         elif log_type == 'csv':
             loggers.append(CSVLogger(
                 save_dir=default_log_dir,
                 name = f"csv_log_{config['exp_name']}",
+                version=id
             ))
             
     
@@ -150,13 +158,18 @@ def train(config:TrainConfig,existing_ckpt_path:Optional[str] = None):
 if __name__ == "__main__":
     import argparse
     import yaml
+    from uuid import uuid4 as uuid
     parser = argparse.ArgumentParser()
     parser.add_argument("--train_config_path",type=str,help='Path to the training config .yaml file')
     parser.add_argument("--ckpt_path",type=str,help = 'Continuous training of existing ckpt file',default=None)
+    parser.add_argument("--run_id",type=str,help = "Run ID to continue training", default=None)
 
     args = parser.parse_args()
+    
     config_file = os.path.join('config','training_config',args.train_config_path)
     with open(config_file) as f:
         config = yaml.safe_load(f)
     
-    train(config,args.ckpt_path)
+    run_id = args.run_id if args.run_id is not None else f"{str(date.today()).replace('-','')}_{str(uuid())[-6:]}"
+    
+    train(config,args.ckpt_path,run_id)

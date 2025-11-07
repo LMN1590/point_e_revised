@@ -1,4 +1,4 @@
-import torch
+from datetime import date,datetime
+from uuid import uuid4 as uuid
 
-sample = torch.randn(3,2,10)
-print(sample.flatten(1).mean(1).shape)
+print()
