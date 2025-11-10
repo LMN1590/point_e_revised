@@ -11,9 +11,6 @@ import os
 
 from custom_diffusion.models.object_encoder import EncoderPlaceholder,ObjectConfig
 
-EPS = 1e-6
-ALPHA =10.0
-
 class GripperDataset(Dataset):
     """
     Custom dataset for diffusion training.
@@ -46,6 +43,8 @@ class GripperDataset(Dataset):
         self,csv_path:str,
         object_encoder_name: Literal['placeholder'],
         max_cond_obj: int,
+        dl_alpha:float,
+        dl_eps:float,
         
         gripper_dir:str,
         gripper_per_sample:int
@@ -54,6 +53,8 @@ class GripperDataset(Dataset):
         self.df = pd.read_csv(csv_path)
         self.object_encoder = self._init_obj_encoder(object_encoder_name)
         self.max_cond_obj = max_cond_obj
+        self.dl_alpha = dl_alpha
+        self.dl_eps = dl_eps
         
         self.gripper_dir = gripper_dir
         self.gripper_per_sample = gripper_per_sample
@@ -99,7 +100,7 @@ class GripperDataset(Dataset):
             df_subset = pd.concat([df_subset, self.df[mask]], ignore_index=True)
         df_avg = df_subset.groupby("index", as_index=False)[["all_loss"]].mean(numeric_only=True)
         
-        weights = 1.0/ (df_avg['all_loss']+EPS) ** ALPHA
+        weights = 1.0/ (df_avg['all_loss']+self.dl_eps) ** self.dl_alpha
         weights /= weights.sum()
 
         chosen_gripper_idx = np.random.choice(df_avg['index'],size=self.gripper_per_sample,p=weights)
@@ -128,6 +129,8 @@ if __name__ == "__main__":
         csv_path='data/grippers/data.csv',
         object_encoder_name = 'placeholder',
         max_cond_obj = 1,
+        dl_alpha=20.0,
+        dl_eps = 1e-6,
         gripper_dir='data/grippers/',
         gripper_per_sample=10
     )

@@ -1,6 +1,7 @@
 from torch.utils.data import DataLoader
 import torch
 from pytorch_lightning import Trainer as LightningTrainer
+from pytorch_lightning import seed_everything
 from pytorch_lightning.callbacks import (
     LearningRateMonitor,
     ModelCheckpoint,
@@ -15,6 +16,7 @@ from pytorch_lightning.loggers.csv_logs import CSVLogger
 from typing import List,Literal,Optional,Dict
 from typing_extensions import TypedDict
 import os
+import shutil
 from datetime import date
 
 from .trainer import DiffusionTrainer
@@ -54,11 +56,14 @@ class DatasetConfig(TypedDict):
     csv_path:str
     object_encoder_name:Literal['placeholder']
     max_cond_obj:int
+    dl_alpha:float
+    dl_eps:float
     gripper_dir: str
     gripper_per_sample:int
     
 class TrainConfig(TypedDict):
     exp_name:str
+    seed:int
     
     train_dataset_config:DatasetConfig
     val_dataset_config:DatasetConfig
@@ -85,12 +90,16 @@ class TrainConfig(TypedDict):
     diffusion_type:str
 
 def train(config:TrainConfig,existing_ckpt_path:Optional[str] = None,id:Optional[str] = None):
+    seed_everything(config['seed'],workers=True)
+    
     default_log_dir = os.path.join(
         config['default_root_dir'],
         config['exp_name'],
         str(id)
     )
     os.makedirs(default_log_dir,exist_ok=True)
+    with open(os.path.join(default_log_dir,'config.yaml'),'w') as f:
+        yaml.safe_dump(config,f)
     train_ds = GripperDataset(**config['train_dataset_config'])
     train_dl = DataLoader(
         train_ds,
@@ -106,9 +115,7 @@ def train(config:TrainConfig,existing_ckpt_path:Optional[str] = None,id:Optional
         shuffle=True, drop_last=False
     )
 
-    device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-
-    base_model = model_from_config(MODEL_CONFIGS[config['noise_pred_net']],device).eval()
+    base_model = model_from_config(MODEL_CONFIGS[config['noise_pred_net']],torch.device('cpu'))
     base_diffusion = diffusion_from_config(DIFFUSION_CONFIGS[config['diffusion_type']])
     base_model._init_fingers_topo(**config['gripper_config'])
     diff_trainer = DiffusionTrainer(
@@ -184,8 +191,9 @@ if __name__ == "__main__":
     
     config_file = os.path.join('config','training_config',args.train_config_path)
     with open(config_file) as f:
-        config = yaml.safe_load(f)
+        config:TrainConfig = yaml.safe_load(f)
     
     run_id = args.run_id if args.run_id is not None else f"{str(date.today()).replace('-','')}_{str(uuid())[-6:]}"
+    run_id += f"_seed{config['seed']}"
     
     train(config,args.ckpt_path,run_id)

@@ -1,9 +1,10 @@
 exp_name: debug
+seed: 42
 
 diffusion_config:
   ema_power: 0.75
   ema_update_after_step: 0
-  learning_rate: !!float 1e-3
+  learning_rate: !!float 1e-4
   lr_warmup_steps: 0
   acc_threshold: 0.01
 
@@ -11,14 +12,20 @@ train_dataset_config:
   csv_path: 'data/grippers/data.csv'
   object_encoder_name: placeholder
   max_cond_obj: 1
+  dl_alpha: 10.0
+  dl_eps: !!float 1e-6
+
   gripper_dir: data/grippers/
-  gripper_per_sample: 50
+  gripper_per_sample: 100
 val_dataset_config:
   csv_path: 'data/grippers/data.csv'
   object_encoder_name: placeholder
   max_cond_obj: 1
+  dl_alpha: 25.0
+  dl_eps: !!float 1e-6
+
   gripper_dir: data/grippers/
-  gripper_per_sample: 10
+  gripper_per_sample: 25
 
 gripper_config:
   num_fingers: 4
@@ -34,7 +41,7 @@ callbacks_config:
     filename: 'epoch_{epoch:03d}_finalsampleloss_{val/final_sample_loss:.4f}_noisepredloss_{val/noise_pred_loss:.4f}_acc_{val/accuracy:.4f}'
     every_n_epochs: 1
     save_last: true
-    save_top_k: 10
+    save_top_k: 5
     monitor: "val/noise_pred_loss"
     mode: min
     save_weights_only: false
@@ -43,7 +50,7 @@ callbacks_config:
   EarlyStopping:
     monitor: "val/noise_pred_loss"
     min_delta: 0.0
-    patience: 50
+    patience: 100
     verbose: false
     mode: min
 
