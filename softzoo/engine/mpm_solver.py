@@ -19,10 +19,11 @@ SUCTION_SIGMA = 1.0
 
 @ti.data_oriented
 class MPMSolver:
-    def __init__(self,cfg:SolverConfig):
+    def __init__(self,cfg:SolverConfig,robot_id:int):
         # region Set Meta-config For Env
         self.i_dtype = I_DTYPE
         self.f_dtype = F_DTYPE
+        self.robot_id = robot_id
         self.needs_grad = cfg.needs_grad
         self.use_checkpointing = cfg.use_checkpointing
         self.checkpoint_cache_device = cfg.checkpoint_cache_device
@@ -391,9 +392,9 @@ class MPMSolver:
                         # TODO: Apply suction here, need to modify the distance function to decrease over distance
                         dist2 = dpos.dot(dpos)
                         sigma2 = SUCTION_SIGMA ** 2
-                        weight = ti.exp(-dist2/(2.0 * sigma2)) * suction_val * dt
+                        suction_weight = ti.exp(-dist2/(2.0 * sigma2)) * suction_val * dt
                         
-                        self.grid_v_suction[s, base + offset] += weight * (-dpos)
+                        self.grid_v_suction[s, base + offset] += suction_weight * (-ti.math.normalize(dpos))
 
 
     @ti.kernel
@@ -402,7 +403,7 @@ class MPMSolver:
             # Apply gravity
             v_out = ti.Vector.zero(F_DTYPE, self.dim)
             if self.grid_m[s, I] > 0: # no need for epsilon here
-                v_out = (1 / self.grid_m[s, I]) * (self.grid_v_in[s, I]+ self.grid_v_suction[s,I]) # momentum to velocity + suction
+                v_out = (1 / self.grid_m[s, I]) * (self.grid_v_in[s, I]) #+ self.grid_v_suction[s,I]) # momentum to velocity + suction
                 v_out += dt * self.gravity[None]
 
             # Apply collider of static item
@@ -437,12 +438,20 @@ class MPMSolver:
 
                 new_v = ti.Vector.zero(F_DTYPE, self.dim)
                 new_C = ti.Matrix.zero(F_DTYPE, self.dim, self.dim)
+                particle_id = self.particle_ids[p]
+                is_robot = (particle_id == self.robot_id)
                 for offset in ti.static(ti.grouped(self.stencil_range())):
                     dpos = offset.cast(F_DTYPE) - fx
                     g_v = self.grid_v_out[s, base + offset]
                     weight = ti.cast(1., F_DTYPE)
+                    
                     for d in ti.static(range(self.dim)):
                         weight *= w[offset[d]][d]
+                    
+                    if not is_robot and self.grid_m[s,base+offset] > 0:
+                        v_suction = self.grid_v_suction[s,base+offset] / self.grid_m[s,base+offset]
+                        g_v += v_suction
+                        
                     new_v += weight * g_v
                     new_C += 4 * self.inv_dx * weight * g_v.outer_product(dpos)
 

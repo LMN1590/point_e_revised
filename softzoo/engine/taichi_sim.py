@@ -27,7 +27,7 @@ class TaichiSim:
         solver:Optional[MPMSolver] = None
     ):
         # Instantiate solver for simulation
-        self.solver = MPMSolver(cfg.SIMULATOR) if solver is None else solver    
+        self.solver = MPMSolver(cfg.SIMULATOR,cfg.ENVIRONMENT.design_space_config.base_shape.particle_id) if solver is None else solver    
         self.is_initialized = False
         self.cfg = cfg
         
