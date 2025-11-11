@@ -21,6 +21,7 @@
             [-0.3925,0.3925]
         ],
         "softness_range": [0.5,1.5],
-        "actuation_strength_range": [0.15,0.3]
+        "actuation_strength_range": [0.15,0.3],
+        "suction_range": [0.0,1.0]
     }
 }

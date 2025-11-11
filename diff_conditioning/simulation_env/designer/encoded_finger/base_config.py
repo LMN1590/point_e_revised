@@ -15,6 +15,7 @@ class SegmentConfig(TypedDict):
     rotation_range: List[Tuple[float,float,float]]
     softness_range:Tuple[float,float]
     actuation_strength_range:Tuple[float,float]
+    suction_range:Tuple[float,float]
     
 class BaseConfig(TypedDict):
     fixed_base_path:str

@@ -90,7 +90,7 @@ class EncodedFinger(Base):
     # endregion
     
     def forward(self,ctrl_tensor:torch.Tensor,end_prob_mask:torch.Tensor):
-        occupancy, actuator,is_passive,softness,actuator_directions = self._create_representation_from_tensor(ctrl_tensor,end_prob_mask)
+        occupancy, actuator,is_passive,softness,suction_val,actuator_directions = self._create_representation_from_tensor(ctrl_tensor,end_prob_mask)
         active_geometry = occupancy
         passive_geometry = occupancy * self.passive_geometry_mul # NOTE: the same as active
         geometry = torch.where(is_passive==1., passive_geometry, active_geometry)
@@ -104,6 +104,7 @@ class EncodedFinger(Base):
         self.out_cache['actuator'] = actuator
         self.out_cache['actuator_direction'] = actuator_directions
         self.out_cache['is_passive_fixed'] = is_passive.to(torch.float32)
+        self.out_cache['suction_val'] = suction_val
         
         # NOTE: must use clone here otherwise tensor may be modified in-place in sim
         design = {k: v.clone() for k, v in self.out_cache.items()}
@@ -145,9 +146,14 @@ class EncodedFinger(Base):
         
         actuator_directions = self._get_actuator_direction(complete_labels_np,complete_pos_tensor)
         softness_mul_by_lbl = self._get_sim_softness(filtered_ctrl_tensor)
-        occupancy, actuator,is_passive,softness = self._get_sim_occupancy(complete_pos_tensor,complete_labels_np,unique_lbls,softness_mul_by_lbl)
+        suction_mul_by_lbl  = self._get_sim_suctions(filtered_ctrl_tensor)
+        occupancy, actuator,is_passive,softness,suction_val = self._get_sim_occupancy(
+            complete_pos_tensor,complete_labels_np,
+            unique_lbls,
+            softness_mul_by_lbl,suction_mul_by_lbl
+        )
         
-        return occupancy, actuator,is_passive,softness, actuator_directions
+        return occupancy, actuator,is_passive,softness,suction_val, actuator_directions
     
     def _filter_segment_encoding(
         self,
@@ -251,7 +257,12 @@ class EncodedFinger(Base):
         return torch.from_numpy(actuator_directions).to(self.device)
         # endregion
    
-    def _get_sim_occupancy(self,complete_pos_tensor:torch.Tensor,complete_labels_np:np.ndarray,unique_lbls:np.ndarray,softness_mul:torch.Tensor):
+    def _get_sim_occupancy(
+        self,
+        complete_pos_tensor:torch.Tensor,complete_labels_np:np.ndarray,
+        unique_lbls:np.ndarray,
+        softness_mul:torch.Tensor,suction_mul:torch.Tensor
+    ):
         """
         Calculate all metrics related to the simulation representation
         Args:
@@ -259,6 +270,7 @@ class EncodedFinger(Base):
             complete_labels_np: The np.ndarray of all labels of all particles in the gripper - (num_particles,)
             unique_lbls: Set of unique labels
             softness_mul: The softness multiplier for each label.
+            suction_mul: The suction multiplier for each label
         """
         # region Calculate Occupancy (!!!!! Ensure Differentiability)
         coords_min, coords_mean, coords_max = self.original_coords.min(0).values, self.original_coords.mean(0), self.original_coords.max(0).values
@@ -294,6 +306,7 @@ class EncodedFinger(Base):
         actuator = torch.zeros((self.env.sim.solver.n_actuators, self.original_coords.shape[0])).to(self.device) #(n_act,n)
         is_passive = torch.zeros((self.original_coords.shape[0])).bool().to(self.device) #(n)
         softness = torch.zeros((self.original_coords.shape[0])).to(self.device)
+        suction_val = torch.zeros((self.original_coords.shape[0])).to(self.device)
         
         coords_lbls_prob = torch.zeros((self.original_coords.shape[0],self.env.sim.solver.n_actuators)).to(self.device)
         for lbl in unique_lbls:
@@ -305,10 +318,10 @@ class EncodedFinger(Base):
             if lbl==passive_lbl: is_passive[coords_cluster==lbl] = 1.
             else: actuator[lbl,coords_cluster==lbl] = 1.
             softness[coords_cluster==lbl] = softness_mul[lbl]
-        
+            suction_val[coords_cluster==lbl] = suction_mul[lbl]
         # endregion
         
-        return occupancy,actuator,is_passive,softness
+        return occupancy,actuator,is_passive,softness,suction_val
     
     def _get_sim_softness(self,ctrl_tensor:torch.Tensor):
         softness_mul = ctrl_tensor[:,:,8].flatten() # (num_finger*num_segments)
@@ -319,6 +332,17 @@ class EncodedFinger(Base):
         return torch.concat([
             torch.tensor([1.]).to(self.device),
             softness_mul_by_lbls
+        ])
+    
+    def _get_sim_suctions(self,ctrl_tensor:torch.Tensor):
+        suction_mul = ctrl_tensor[:,:,10]
+        suction_mul_scaled = suction_mul * (
+            self.base_config['segment_config']['suction_range'][1] - self.base_config['segment_config']['suction_range'][0]
+        ) + self.base_config['segment_config']['suction_range'][0] # (B,)
+        suction_mul_by_lbls = suction_mul_scaled.repeat_interleave(2)
+        return torch.concat([
+            torch.tensor([0.]).to(self.device),
+            suction_mul_by_lbls
         ])
     
     # region Finger Transformation

@@ -40,7 +40,8 @@ class ParticleBasedRepresentation(DesignRepresentation):
             geometry=ti.field(F_DTYPE, shape=(self.n_particles,), needs_grad=self.sim.solver.needs_grad),
             softness=ti.field(F_DTYPE, shape=(self.n_particles,), needs_grad=self.sim.solver.needs_grad),
             actuator=ti.field(F_DTYPE, shape=(self.n_actuators, self.n_particles), needs_grad=self.sim.solver.needs_grad),
-            actuator_direction=ti.Vector.field(2, F_DTYPE, shape=(self.n_actuators,), needs_grad = self.sim.solver.needs_grad)
+            actuator_direction=ti.Vector.field(2, F_DTYPE, shape=(self.n_actuators,), needs_grad = self.sim.solver.needs_grad),
+            suction_val = ti.field(F_DTYPE, shape=(self.n_particles,), needs_grad=self.sim.solver.needs_grad),
         ))
         self.is_passive_fixed = ti.field(
             F_DTYPE,shape=(self.n_particles,),
@@ -53,6 +54,7 @@ class ParticleBasedRepresentation(DesignRepresentation):
         self.buffer['softness'].fill(1.)
         self.buffer['actuator'].fill(1. / self.n_actuators)
         self.buffer['actuator_direction'].fill(1./math.sqrt(3))
+        self.buffer['suction_val'].fill(0.)
         self.is_passive_fixed.fill(0.)
 
     def reset(self):
@@ -73,6 +75,8 @@ class ParticleBasedRepresentation(DesignRepresentation):
             self.sim.device.from_ext(self.buffer['actuator_direction'], design['actuator_direction']) # TODO no grad
         if 'is_passive_fixed' in design.keys():
             self.sim.device.from_ext(self.is_passive_fixed, design['is_passive_fixed'])
+        if 'suction_val' in design.keys():
+            self.sim.device.from_ext(self.buffer['suction_val'], design['suction_val'])
         self.set_design_kernel()
         
 
@@ -133,6 +137,7 @@ class ParticleBasedRepresentation(DesignRepresentation):
                 # update softness (both mu and lambd is linearly proportional to E)
                 self.sim.solver.mu[p] = self.particle_info.mu_0 * self.buffer['softness'][p_design_space]
                 self.sim.solver.lambd[p] = self.particle_info.lambd_0 * self.buffer['softness'][p_design_space]
+                self.sim.solver.suction_val[p] = self.buffer['suction_val'][p_design_space]
                 
     @ti.kernel
     def sync_actuation_with_buffer(self, s: I_DTYPE):

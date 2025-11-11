@@ -15,6 +15,7 @@ from .primitives import PrimitiveBase,Primitive
 
 from .materials import Material
 
+SUCTION_SIGMA = 1.0
 
 @ti.data_oriented
 class MPMSolver:
@@ -87,6 +88,8 @@ class MPMSolver:
         self.C = ti.Matrix.field(self.dim, self.dim, dtype=self.f_dtype, needs_grad=self.needs_grad) # affine velocity field
         self.Jp = ti.field(dtype=self.f_dtype)
         
+        
+        
         self.U = ti.Matrix.field(self.dim, self.dim, dtype=self.f_dtype, needs_grad=self.needs_grad) # U in SVD
         self.sig = ti.Matrix.field(self.dim, self.dim, dtype=self.f_dtype, needs_grad=self.needs_grad) # sigma in SVD
         self.V = ti.Matrix.field(self.dim, self.dim, dtype=self.f_dtype, needs_grad=self.needs_grad) # V in SVD
@@ -129,14 +132,15 @@ class MPMSolver:
         # region Particle-Invariant Setup
         self.fixed = ti.field(dtype=self.f_dtype) 
         self.fixed_v = ti.Vector.field(self.dim, dtype=self.f_dtype,needs_grad=False)
+        self.suction_val = ti.field(dtype=self.f_dtype, needs_grad = self.needs_grad)
         if cfg.use_dynamic_field:
             self.particle_time_invariant = ti.root.dynamic(ti.i, self.max_num_particles, chunk_size)
         else:
             self.particle_time_invariant = ti.root.dense(ti.i, self.max_num_particles)
         if self.needs_grad:
-            self.particle_time_invariant.place(self.mu, self.mu.grad, self.lambd, self.lambd.grad, self.p_rho, self.p_rho.grad)
+            self.particle_time_invariant.place(self.mu, self.mu.grad, self.lambd, self.lambd.grad, self.p_rho, self.p_rho.grad, self.suction_val, self.suction_val.grad)
         else:
-            self.particle_time_invariant.place(self.mu, self.lambd, self.p_rho)
+            self.particle_time_invariant.place(self.mu, self.lambd, self.p_rho,self.suction_val)
         self.particle_time_invariant.place(self.material, self.particle_ids, self.fixed,self.fixed_v)
         # endregion
         
@@ -147,6 +151,7 @@ class MPMSolver:
         self.grid_v_fixed = ti.field(dtype=self.f_dtype, shape=grid_shape, needs_grad=False) # Places where the v-out need to be fixed.
         self.grid_m = ti.field(dtype=self.f_dtype, shape=grid_shape, needs_grad=self.needs_grad) # grid mass
         self.grid_v_out = ti.Vector.field(self.dim, dtype=self.f_dtype, shape=grid_shape, needs_grad=self.needs_grad) # grid velocity after grid_op
+        self.grid_v_suction = ti.Vector.field(self.dim, dtype=self.f_dtype, shape=grid_shape, needs_grad=self.needs_grad)
         
         # Functions for material-wise computation
         self.material_models = dict()
@@ -373,12 +378,19 @@ class MPMSolver:
 
                     affine = stress + p_mass * self.C[s, p]
 
+                    suction_val = self.suction_val[p]
                     for offset in ti.static(ti.grouped(self.stencil_range())):
                         dpos = (offset.cast(F_DTYPE) - fx) * self.dx
                         weight = ti.cast(1.0, F_DTYPE)
                         for d in ti.static(range(self.dim)):
                             weight *= w[offset[d]][d]
 
+                        # TODO: Apply suction here, need to modify the distance function to decrease over distance
+                        dist2 = dpos.dot(dpos)
+                        sigma2 = SUCTION_SIGMA ** 2
+                        weight = ti.exp(-dist2/(2.0 * sigma2)) * suction_val * dt
+                        
+                        self.grid_v_suction[s, base + offset] += weight * (-dpos)
                         self.grid_v_in[s, base + offset] += weight * (p_mass * self.v[s, p] + affine @ dpos)
                         self.grid_m[s, base + offset] += weight * p_mass
 
@@ -389,7 +401,7 @@ class MPMSolver:
             # Apply gravity
             v_out = ti.Vector.zero(F_DTYPE, self.dim)
             if self.grid_m[s, I] > 0: # no need for epsilon here
-                v_out = (1 / self.grid_m[s, I]) * self.grid_v_in[s, I] # momentum to velocity
+                v_out = (1 / self.grid_m[s, I]) * (self.grid_v_in[s, I] + self.grid_v_suction[s,I]) # momentum to velocity + suction
                 v_out += dt * self.gravity[None]
 
             # Apply collider of static item
@@ -630,12 +642,14 @@ class MPMSolver:
             self.grid_v_in[s, I] = zero
             self.grid_v_fixed[s, I] = 0
             self.grid_v_out[s, I] = zero
+            self.grid_v_suction[s,I] = zero
             self.grid_m[s, I] = 0
             if ti.static(self.needs_grad):
                 self.grid_v_in.grad[s, I] = zero
                 # self.grid_v_fixed.grad[s, I] = zero
                 self.grid_v_out.grad[s, I] = zero
                 self.grid_m.grad[s, I] = 0
+                self.grid_v_suction.grad[s,I] = zero
     
     @ti.kernel
     def clear_particle_grad(self):
@@ -658,6 +672,7 @@ class MPMSolver:
             self.mu.grad[I[1]] = 0.
             self.lambd.grad[I[1]] = 0.
             self.p_rho.grad[I[1]] = 0.
+            self.suction_val.grad[I[1]] = 0.
 
     @ti.kernel
     def clear_act_buffer_grad(self):
@@ -688,6 +703,7 @@ class MPMSolver:
             self.grid_m.grad.fill(0.)
             self.grid_v_in.grad.fill(0.)
             self.grid_v_out.grad.fill(0.)
+            self.grid_v_suction.grad.fill(0.)
 
         if hasattr(self, 'v_buffer'):
             self.v_buffer.fill(0.)
@@ -723,6 +739,7 @@ class MPMSolver:
         self.p_rho[p] = p_rho
         self.mu[p] = mu
         self.lambd[p] = lambd
+        self.suction_val[p] = 0
 
     @ti.func
     def seed_nonoverlap_particle(self, s, x, v, material, particle_id, p_rho, mu, lambd):
