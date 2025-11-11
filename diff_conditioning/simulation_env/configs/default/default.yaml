@@ -41,6 +41,7 @@ set_design_types:              # options: ['geometry', 'softness', 'actuator', '
   - actuator
   - actuator_direction
   - is_passive_fixed
+  - suction_val
 optimize_design_types:         # options: ['geometry', 'softness', 'actuator', 'actuator_direction']
   - geometry
   - softness

@@ -384,15 +384,16 @@ class MPMSolver:
                         weight = ti.cast(1.0, F_DTYPE)
                         for d in ti.static(range(self.dim)):
                             weight *= w[offset[d]][d]
-
+                            
+                        self.grid_v_in[s, base + offset] += weight * (p_mass * self.v[s, p] + affine @ dpos)
+                        self.grid_m[s, base + offset] += weight * p_mass
+                        
                         # TODO: Apply suction here, need to modify the distance function to decrease over distance
                         dist2 = dpos.dot(dpos)
                         sigma2 = SUCTION_SIGMA ** 2
                         weight = ti.exp(-dist2/(2.0 * sigma2)) * suction_val * dt
                         
                         self.grid_v_suction[s, base + offset] += weight * (-dpos)
-                        self.grid_v_in[s, base + offset] += weight * (p_mass * self.v[s, p] + affine @ dpos)
-                        self.grid_m[s, base + offset] += weight * p_mass
 
 
     @ti.kernel
@@ -401,7 +402,7 @@ class MPMSolver:
             # Apply gravity
             v_out = ti.Vector.zero(F_DTYPE, self.dim)
             if self.grid_m[s, I] > 0: # no need for epsilon here
-                v_out = (1 / self.grid_m[s, I]) * (self.grid_v_in[s, I] + self.grid_v_suction[s,I]) # momentum to velocity + suction
+                v_out = (1 / self.grid_m[s, I]) * (self.grid_v_in[s, I]+ self.grid_v_suction[s,I]) # momentum to velocity + suction
                 v_out += dt * self.gravity[None]
 
             # Apply collider of static item

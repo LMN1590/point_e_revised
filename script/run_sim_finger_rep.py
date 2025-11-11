@@ -29,40 +29,40 @@ random.seed(general_config['seed'])
 np.random.seed(general_config['seed'])
 torch.manual_seed(general_config['seed'])
 
-from diff_conditioning.simulation_env.alt_softzoo_sim import AltSoftzooSimulation
+from diff_conditioning.simulation_env.softzoo_final import SoftZooSimulation
 
 softzoo_config:Dict = general_config['softzoo_config']
-full_softzoo_config = AltSoftzooSimulation.load_config(
+full_softzoo_config = SoftZooSimulation.load_config(
     cfg_item = softzoo_config
 )
 full_softzoo_config.out_dir = LOG_PATH_DICT['softzoo_log_dir']
-general_config['sap_config']['train']['dir_mesh'] = LOG_PATH_DICT['sap_mesh_dir']
-general_config['sap_config']['train']['dir_pcl'] = LOG_PATH_DICT['sap_pcl_dir']
-general_config['sap_config']['train']['dir_train'] = LOG_PATH_DICT['sap_training_dir']
 
-sim_cls = AltSoftzooSimulation.init_cond(
-    config = general_config['cond_config'][0],
-    softzoo_config=full_softzoo_config,
-    sap_config=general_config['sap_config']
+sim_cls=SoftZooSimulation(
+    config = full_softzoo_config,
+    num_fingers=4,
+    max_num_segments=10,
+    gripper_dim=11,
+    **general_config['cond_config'][0]
 )
-ctrl_tensor = torch.tensor([1.0,1.0,1.0,1.0,1.0,0.5,0.5,0.5,1.0,1.0])
-ctrl_tensor = ctrl_tensor.repeat(4,10,1)
+
+ctrl_tensor = torch.tensor([1.0,1.0,1.0,1.0,1.0,0.5,0.5,0.5,1.0,1.0,1.0])
+ctrl_tensor = ctrl_tensor.repeat(1,10,1)
 # raw_tensor = torch.randn(4,10,10)
-end_prob_mask = torch.ones(4,10)
+end_prob_mask = torch.ones(1,10)
 
-raw_tensor = torch.log(ctrl_tensor/(1-ctrl_tensor))
-raw_tensor.requires_grad_(True)
-end_prob_mask.requires_grad_(True)
-lr = 1e-1
-optim = optim.Adam([raw_tensor,end_prob_mask], lr=lr)
+# raw_tensor = torch.log(ctrl_tensor/(1-ctrl_tensor))
+# raw_tensor.requires_grad_(True)
+# end_prob_mask.requires_grad_(True)
+# lr = 1e-1
+# optim = optim.Adam([raw_tensor,end_prob_mask], lr=lr)
 
-for i in tqdm(range(100)):
-    TENSORBOARD_LOGGER.log_scalar('Simulation/Encoding_Norm',raw_tensor.flatten().norm(2))
-    optim.zero_grad()
-    sim_cls.calculate_gradient(
-        raw_tensor,
+for i in tqdm(range(1)):
+    # TENSORBOARD_LOGGER.log_scalar('Simulation/Encoding_Norm',raw_tensor.flatten().norm(2))
+    # optim.zero_grad()
+    sim_cls.forward_sim(
+        ctrl_tensor,
         end_prob_mask,
-        i
+        i,0,0
     )
-    optim.step()
-    TENSORBOARD_LOGGER.increment()
+    # optim.step()
+    # TENSORBOARD_LOGGER.increment()

@@ -1,4 +1,3 @@
-from datetime import date,datetime
-from uuid import uuid4 as uuid
-
-print()
+import numpy as np
+content = np.load('data/grippers/gripper_nf4_id0.npz')
+print(content['gripper_emb'])
