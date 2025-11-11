@@ -117,6 +117,10 @@ def train(config:TrainConfig,existing_ckpt_path:Optional[str] = None,id:Optional
 
     base_model = model_from_config(MODEL_CONFIGS[config['noise_pred_net']],torch.device('cpu'))
     base_diffusion = diffusion_from_config(DIFFUSION_CONFIGS[config['diffusion_type']])
+    with open(os.path.join(default_log_dir,'model_config.yaml'),'w') as f:
+        yaml.safe_dump(MODEL_CONFIGS[config['noise_pred_net']],f)
+    with open(os.path.join(default_log_dir,'diffusion_config.yaml'),'w') as f:
+        yaml.safe_dump(DIFFUSION_CONFIGS[config['diffusion_type']],f)
     base_model._init_fingers_topo(**config['gripper_config'])
     diff_trainer = DiffusionTrainer(
         noise_pred_net=base_model,
