@@ -1,4 +1,4 @@
-exp_name: 100_suck
+exp_name: sigma_0001_real_100_suck
 seed: &seed 310
 out_dir: ./logs/
 tensorboard_log_dir: runs/

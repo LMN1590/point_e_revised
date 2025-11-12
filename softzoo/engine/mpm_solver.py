@@ -15,7 +15,7 @@ from .primitives import PrimitiveBase,Primitive
 
 from .materials import Material
 
-SUCTION_SIGMA = 1.0
+SUCTION_SIGMA = 0.005
 
 @ti.data_oriented
 class MPMSolver:
@@ -394,7 +394,7 @@ class MPMSolver:
                         sigma2 = SUCTION_SIGMA ** 2
                         suction_weight = ti.exp(-dist2/(2.0 * sigma2)) * suction_val * dt
                         
-                        self.grid_v_suction[s, base + offset] += suction_weight * (-ti.math.normalize(dpos))
+                        self.grid_v_suction[s, base + offset] += suction_weight * (-dpos)
 
 
     @ti.kernel
@@ -450,7 +450,11 @@ class MPMSolver:
                     
                     if not is_robot and self.grid_m[s,base+offset] > 0:
                         v_suction = self.grid_v_suction[s,base+offset] / self.grid_m[s,base+offset]
+                        # print(v_suction,g_v)
                         g_v += v_suction
+                        if ti.static(self.cfl_max > 0):
+                            v_allowed = self.dx * self.cfl_max / dt
+                            g_v = ti.min(ti.max(g_v, -v_allowed), v_allowed)
                         
                     new_v += weight * g_v
                     new_C += 4 * self.inv_dx * weight * g_v.outer_product(dpos)
