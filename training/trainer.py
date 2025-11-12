@@ -32,7 +32,8 @@ class DiffusionTrainer(LightningModule):
         
         learning_rate: float = 1e-4,
         lr_warmup_percentage: int = 0,
-        warmup_lr_ratio:float = 0.1,
+        warmup_min_lr_ratio:float = 0.1,
+        min_lr_ratio:float = 1e-3,
         
         num_epochs:int = 1000,
         acc_threshold:float = 0.01,
@@ -57,7 +58,8 @@ class DiffusionTrainer(LightningModule):
         
         self.learning_rate= learning_rate
         self.lr_warmup_percentage = lr_warmup_percentage
-        self.warmup_lr_ratio = warmup_lr_ratio
+        self.warmup_min_lr_ratio = warmup_min_lr_ratio
+        self.min_lr_ratio = min_lr_ratio
         
         self.num_epochs = num_epochs
         self.acc_threshold = acc_threshold
@@ -234,7 +236,7 @@ class DiffusionTrainer(LightningModule):
     
     def configure_optimizers(self):
         self.optimizer = torch.optim.AdamW(self.ema_nets.parameters(),lr = self.learning_rate)
-        warmup_iter = int(np.round(self.lr_warmup_percentage * self.num_epochs))
+        warmup_iter = int(np.round(self.lr_warmup_percentage * self.total_num_steps))
         warmup_scheduler = torch.optim.lr_scheduler.LambdaLR(
             self.optimizer,
             lr_lambda=warmup_lambda(
@@ -242,11 +244,22 @@ class DiffusionTrainer(LightningModule):
                 min_lr_ratio=self.warmup_min_lr_ratio
             )
         )
-        
-        
-        
-        # self.lr_scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(self.optimizer,T_max=self.num_epochs,eta_min=0.0)
-        return [self.optimizer], [self.lr_scheduler]
+        cosine_scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(
+            self.optimizer,
+            T_max=(self.total_num_steps - warmup_iter),
+            eta_min=self.min_lr_ratio * self.learning_rate
+        )
+        self.lr_scheduler = torch.optim.lr_scheduler.SequentialLR(
+            self.optimizer, 
+            schedulers=[warmup_scheduler, cosine_scheduler],
+            milestones=[warmup_iter]
+        )
+        lr_scheduler_config = {
+            'scheduler': self.lr_scheduler,
+            'interval': 'step',
+            'frequency': 1,
+        }
+        return {'optimizer': self.optimizer, 'lr_scheduler': lr_scheduler_config}
     
 
     def on_train_batch_end(self, outputs, batch, batch_idx) -> None:

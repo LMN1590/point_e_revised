@@ -49,6 +49,8 @@ class DiffusionTrainerConfig(TypedDict):
     
     learning_rate: float
     lr_warmup_percentage:int
+    warmup_min_lr_ratio: float
+    min_lr_ratio: float
 
     acc_threshold: float
 
@@ -84,7 +86,8 @@ class TrainConfig(TypedDict):
     gradient_clip_algorithm: str
     num_sanity_val_steps: int
     
-    dl_batch_size:int
+    dl_total_batch_size:int
+    dl_micro_batch_size:int
     dl_num_workers:int
     
     noise_pred_net:str
@@ -104,14 +107,14 @@ def train(config:TrainConfig,existing_ckpt_path:Optional[str] = None,id:Optional
     train_ds = GripperDataset(**config['train_dataset_config'])
     train_dl = DataLoader(
         train_ds,
-        batch_size = config['dl_batch_size'],
+        batch_size = config['dl_micro_batch_size'],
         num_workers= config['dl_num_workers'],
         shuffle=True, drop_last=False
     )
     val_ds = GripperDataset(**config['val_dataset_config'])
     val_dl = DataLoader(
         val_ds,
-        batch_size = config['dl_batch_size'],
+        batch_size = config['dl_micro_batch_size'],
         num_workers= config['dl_num_workers'],
         shuffle=True, drop_last=False
     )
@@ -135,7 +138,7 @@ def train(config:TrainConfig,existing_ckpt_path:Optional[str] = None,id:Optional
         **config['diffusion_config'],
         **config['gripper_config'],
         pcd_log_dir=pcd_log_dir,
-        total_num_steps=int(config['max_epochs']*len(train_ds)/config['dl_batch_size'])
+        total_num_steps=int(config['max_epochs']*len(train_ds)/config['dl_total_batch_size'])
     )
     
     callbacks = [
@@ -182,7 +185,8 @@ def train(config:TrainConfig,existing_ckpt_path:Optional[str] = None,id:Optional
         logger=loggers,
         gradient_clip_val = config['gradient_clip_val'],
         gradient_clip_algorithm = config['gradient_clip_algorithm'],
-        num_sanity_val_steps = config['num_sanity_val_steps']
+        num_sanity_val_steps = config['num_sanity_val_steps'],
+        accumulate_grad_batches=config['dl_total_batch_size'] // (config['dl_micro_batch_size'] * len(config['gpus'])),
     )
     
     if existing_ckpt_path is not None:
