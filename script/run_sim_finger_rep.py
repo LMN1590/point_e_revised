@@ -45,10 +45,11 @@ sim_cls=SoftZooSimulation(
     **general_config['cond_config'][0]
 )
 
-ctrl_tensor = torch.tensor([1.0,1.0,1.0,1.0,1.0,0.5,0.5,0.5,1.0,1.0,1.0])
-ctrl_tensor = ctrl_tensor.repeat(1,10,1)
+
+ctrl_tensor = torch.tensor([1.0,1.0,1.0,1.0,1.0,0.5,0.5,0.5,1.0,1.0,0.0])
+ctrl_tensor = ctrl_tensor.repeat(4,10,1)
 # raw_tensor = torch.randn(4,10,10)
-end_prob_mask = torch.ones(1,10)
+end_prob_mask = torch.ones(4,10)
 
 # raw_tensor = torch.log(ctrl_tensor/(1-ctrl_tensor))
 # raw_tensor.requires_grad_(True)

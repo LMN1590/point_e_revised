@@ -1,4 +1,4 @@
-exp_name: debug_benchmark_topdown_downscaled_roll_scaledup_strength_config_mod_static_modded_data_gen_process
+exp_name: test_tuned
 seed: &seed 310
 out_dir: ./logs/
 tensorboard_log_dir: runs/
@@ -36,7 +36,7 @@ softzoo_config:
   # eval: True
   out_dir: null # Placeholder, need to be set in run.py
   fixed_v: gripping_5_HTP.json
-  env_config_file: modded_sim.yaml
+  env_config_file: test.yaml
   save_every_iter: *log_freq
   render_every_iter: *log_freq
   n_iters: 301
@@ -55,7 +55,7 @@ softzoo_config:
   seed: *seed  # Placeholder, do not use
   torch_seed: *seed  # Placeholder, do not use
   static_as_fixed: True
-  device_memory_fraction: 0.65
+  device_memory_fraction: 0.7
 
   optimize_designer: True
   optimize_design_types: ['geometry','softness']
@@ -69,57 +69,6 @@ softzoo_config:
   design_device: cpu
   obj_initial_pos: [0,0,0]
   num_fingers: 2
-
-sap_config:
-  data:
-    data_type: point
-    n_views_per_iter: 2
-    zero_level: 0
-
-  model:
-    sphere_radius: 0.2
-    num_points: 20000
-    grid_res: 128 # poisson grid resolution
-    psr_sigma: 2
-
-    apply_sigmoid: True
-    normal_normalize: False
-
-  train:
-    schedule:
-      initial: 1e-2
-      interval: 200
-      factor: 0.5
-      final: 1e-3
-    
-    total_epochs: 500
-
-    w_chamfer: 1.
-    w_chamfer_v_mesh: 1.
-    w_chamfer_x_0: 10.
-    w_inside: 0.1
-    w_outside: 1.
-
-    n_sup_point: 20000
-    n_grow_points: 2000
-    subsample_vertex: False
-    l_weight: {}
-
-    exp_mesh: True
-    exp_pcl: True
-
-    resample_every: 75
-
-  sample:
-    num_points: 10000
-    density: 3.0
-    voxel_size: 0.02
-
-  device: cuda:1
-  gradient_alpha: 10.0
-  save_every_iter: *log_freq
-  save_every_sub_iter: 1
-  resample_mode: 'o3d'
 
 pointe_config:
   base_model_name: base40M

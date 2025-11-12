@@ -20,6 +20,20 @@ from softzoo.utils.computation_utils import directions_to_spherical
 
 if TYPE_CHECKING:
     from softzoo.envs.base_env import BaseEnv
+    
+def visualize(pts:torch.Tensor):
+    # Convert to numpy
+    points_np = pts.cpu().numpy()
+
+    # Create an Open3D point cloud object
+    pcd = o3d.geometry.PointCloud()
+    pcd.points = o3d.utility.Vector3dVector(points_np)
+
+    # (Optional) Add color
+    pcd.paint_uniform_color([0.1, 0.7, 0.9])
+
+    # Visualize
+    o3d.visualization.draw_geometries([pcd])
 
 class EncodedFinger(Base):
     # region Initialization
@@ -134,6 +148,8 @@ class EncodedFinger(Base):
             num_fingers,num_segment_per_finger,
             filtered_ctrl_tensor,processed_end_prob_mask
         ).float()
+        visualize(complete_pos_tensor)
+        # breakpoint()
         
         complete_labels_np = self._create_labels(processed_end_prob_mask)
         # visualize_point_cloud(complete_pos_tensor,complete_labels_np)

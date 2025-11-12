@@ -31,6 +31,11 @@ if __name__ == "__main__":
         num_fingers = 4
     )
     
+    ckpt_path = 'training_logs/debug/extended_model_seed420/checkpoints/epoch_1414_finalsampleloss_0.0482_noisepredloss_4.2306_acc_0.1303.ckpt'
+    state_dict = torch.load(ckpt_path,weights_only=True)['state_dict']
+    filtered_state_dict = {k.replace('ema_nets.noise_pred_net.',''):v for k,v in state_dict.items() if "ema_nets.noise_pred_net" in k}
+    base_model.load_state_dict(filtered_state_dict)
+    
     sampler = GripperSampler(
         device = device,
         models = [base_model],
@@ -59,9 +64,13 @@ if __name__ == "__main__":
         calc_gradient=general_config['cond_config'][0]['calc_gradient'],
         grad_clamp=general_config['cond_config'][0]['grad_clamp'],
         logging_bool=general_config['cond_config'][0]['logging_bool'],
+        
+        gripper_dim= 10,
+        max_num_segments=10,
+        num_fingers=4
     )
-    
-    
+    sim_cls.designer.reset()
+    sample = None
     for x in tqdm(sampler.sample_batch_progressive(
         batch_size=1,
         model_kwargs=dict(
@@ -69,9 +78,18 @@ if __name__ == "__main__":
             objects= ['test']
         ),
         pre_noise = [pre_noise],
-        cond_fn_lst= [sim_cls.calculate_gradient]
+        cond_fn_lst= [None]
     )):
-        pass
+        sample = x
+    assert sample is not None
+    gripper_emb = sample.permute(0,2,1).reshape(1,4,10,11) 
+    ctrl_tensors, end_masks = gripper_emb[:,:,:,:-1], gripper_emb[:,:,:,-1]
+    modded_ctrl_tensors = torch.cat([ctrl_tensors,torch.zeros(*ctrl_tensors.shape[:-1],1,device=ctrl_tensors.device,dtype = ctrl_tensors.dtype)],dim=-1)
+    sim_cls.forward_sim(
+        modded_ctrl_tensors[0],
+        end_masks[0],
+        0,0,0
+    )
     
 
     # output = base_model(

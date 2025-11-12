@@ -154,10 +154,11 @@ class SoftZooSimulation(BaseCond):
             gripper_emb = pred_xstart.permute(0,2,1).reshape(B,self.num_fingers,self.max_num_segments,C) # [B,finger,segments,C]
             
             ctrl_tensors, end_masks = gripper_emb[:,:,:,:-1], gripper_emb[:,:,:,-1]
+            modded_ctrl_tensors = torch.cat([ctrl_tensors,torch.zeros(*ctrl_tensors.shape[:-1],1,device=ctrl_tensors.device,dtype = ctrl_tensors.dtype)],dim=-1)
             
             for i,t_sample in zip(range(B//2),t.tolist()):
                 ep_reward,reward_log,design_loss = self.forward_sim(
-                    ctrl_tensors[i],
+                    modded_ctrl_tensors[i],
                     end_masks[i],
                     batch_idx=i, sampling_step=t_sample,
                     local_iter=local_iter
