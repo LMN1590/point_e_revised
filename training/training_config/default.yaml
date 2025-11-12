@@ -5,7 +5,7 @@ diffusion_config:
   ema_power: 0.75
   ema_update_after_step: 0
   learning_rate: !!float 1e-4
-  lr_warmup_steps: 0
+  lr_warmup_percentage: 0.05
   acc_threshold: 0.01
 
 train_dataset_config:

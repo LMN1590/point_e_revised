@@ -19,6 +19,8 @@ from custom_diffusion.diffusion.diff_utils import _extract_into_tensor
 
 from diff_conditioning.simulation_env.designer.encoded_finger.design_bare import EncodedFingerBare
 
+from .scheduler import warmup_lambda
+
 class DiffusionTrainer(LightningModule):
     def __init__(
         self,
@@ -29,7 +31,8 @@ class DiffusionTrainer(LightningModule):
         ema_update_after_step:int = 0,
         
         learning_rate: float = 1e-4,
-        lr_warmup_steps: int = 0,
+        lr_warmup_percentage: int = 0,
+        warmup_lr_ratio:float = 0.1,
         
         num_epochs:int = 1000,
         acc_threshold:float = 0.01,
@@ -37,10 +40,13 @@ class DiffusionTrainer(LightningModule):
         gripper_dim: int = 10,
         max_num_segments: int = 10,
         num_fingers: int = 4,
-        pcd_log_dir:str = ''
+        pcd_log_dir:str = '',
+        
+        total_num_steps:int = 100
     ):
         super().__init__()
         self.save_hyperparameters(ignore=["noise_pred_net", "diffusion"])
+        self.total_num_steps = total_num_steps
         
         self.ema_nets = nn.ModuleDict({"noise_pred_net": noise_pred_net})
         self.diffusion = diffusion
@@ -50,7 +56,8 @@ class DiffusionTrainer(LightningModule):
         self.ema_update_after_step = ema_update_after_step
         
         self.learning_rate= learning_rate
-        self.lr_warmup_steps = lr_warmup_steps
+        self.lr_warmup_percentage = lr_warmup_percentage
+        self.warmup_lr_ratio = warmup_lr_ratio
         
         self.num_epochs = num_epochs
         self.acc_threshold = acc_threshold
@@ -227,7 +234,18 @@ class DiffusionTrainer(LightningModule):
     
     def configure_optimizers(self):
         self.optimizer = torch.optim.AdamW(self.ema_nets.parameters(),lr = self.learning_rate)
-        self.lr_scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(self.optimizer,T_max=self.num_epochs,eta_min=0.0)
+        warmup_iter = int(np.round(self.lr_warmup_percentage * self.num_epochs))
+        warmup_scheduler = torch.optim.lr_scheduler.LambdaLR(
+            self.optimizer,
+            lr_lambda=warmup_lambda(
+                warmup_steps=warmup_iter,
+                min_lr_ratio=self.warmup_min_lr_ratio
+            )
+        )
+        
+        
+        
+        # self.lr_scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(self.optimizer,T_max=self.num_epochs,eta_min=0.0)
         return [self.optimizer], [self.lr_scheduler]
     
 

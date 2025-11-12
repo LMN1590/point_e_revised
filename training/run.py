@@ -48,7 +48,7 @@ class DiffusionTrainerConfig(TypedDict):
     ema_update_after_step:int
     
     learning_rate: float
-    lr_warmup_steps:int
+    lr_warmup_percentage:int
 
     acc_threshold: float
 
@@ -118,20 +118,24 @@ def train(config:TrainConfig,existing_ckpt_path:Optional[str] = None,id:Optional
 
     base_model = model_from_config(MODEL_CONFIGS[config['noise_pred_net']],torch.device('cpu'))
     base_diffusion = diffusion_from_config(DIFFUSION_CONFIGS[config['diffusion_type']])
+    base_model._init_fingers_topo(**config['gripper_config'])
+    
     with open(os.path.join(default_log_dir,'model_config.yaml'),'w') as f:
         yaml.safe_dump(MODEL_CONFIGS[config['noise_pred_net']],f)
     with open(os.path.join(default_log_dir,'diffusion_config.yaml'),'w') as f:
         yaml.safe_dump(DIFFUSION_CONFIGS[config['diffusion_type']],f)
-    base_model._init_fingers_topo(**config['gripper_config'])
+    
     pcd_log_dir = os.path.join(default_log_dir,'pcd')
     os.makedirs(pcd_log_dir,exist_ok=True)
+    
     diff_trainer = DiffusionTrainer(
         noise_pred_net=base_model,
         diffusion=base_diffusion,
         num_epochs = config['max_epochs'],
         **config['diffusion_config'],
         **config['gripper_config'],
-        pcd_log_dir=pcd_log_dir
+        pcd_log_dir=pcd_log_dir,
+        total_num_steps=int(config['max_epochs']*len(train_ds)/config['dl_batch_size'])
     )
     
     callbacks = [

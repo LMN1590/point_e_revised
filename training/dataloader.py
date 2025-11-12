@@ -130,7 +130,8 @@ class GripperDataset(Dataset):
         return {
             "grippers":torch.stack(gripper_data_total),
             "object_embedding": self.object_encoder.encode(chosen_objs,self.gripper_per_sample),
-            "weights": torch.from_numpy(np.array(weights[chosen_gripper_idx]))
+            "weights": torch.from_numpy(np.array(weights[chosen_gripper_idx])),
+            'gripper_idx': torch.from_numpy(chosen_gripper_idx)
         }
         
 
@@ -143,7 +144,7 @@ if __name__ == "__main__":
         dl_eps = 1e-6,
         gripper_dir='data/grippers/',
         gripper_per_sample=10,
-        sample_mode='top'
+        sample_mode='random'
     )
     dl = DataLoader(ds,batch_size=5,shuffle=True,drop_last=False,num_workers=2)
     for item in dl:
