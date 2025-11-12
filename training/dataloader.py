@@ -47,9 +47,13 @@ class GripperDataset(Dataset):
         dl_eps:float,
         
         gripper_dir:str,
-        gripper_per_sample:int
+        gripper_per_sample:int,
+        
+        sample_mode:Literal['random','top']
     ):
         super().__init__()
+        self.sample_mode = sample_mode
+        
         self.df = pd.read_csv(csv_path)
         self.object_encoder = self._init_obj_encoder(object_encoder_name)
         self.max_cond_obj = max_cond_obj
@@ -83,6 +87,7 @@ class GripperDataset(Dataset):
         return sum(math.comb(len(self.object_set), i) for i in range(1, self.max_cond_obj+1))
 
     def __getitem__(self, index):
+        # Randomly choosing a set of objects to optimize < self.max_cond_obj
         num_obj_samples = np.random.randint(1,self.max_cond_obj+1)
         chosen_obj_idx = np.random.choice(len(self.object_set),(num_obj_samples),replace=False)
         chosen_objs:List[ObjectConfig] = [self.object_set[chosen_idx] for chosen_idx in chosen_obj_idx]
@@ -99,11 +104,16 @@ class GripperDataset(Dataset):
             )
             df_subset = pd.concat([df_subset, self.df[mask]], ignore_index=True)
         df_avg = df_subset.groupby("index", as_index=False)[["all_loss"]].mean(numeric_only=True)
-        
         weights = 1.0/ (df_avg['all_loss']+self.dl_eps) ** self.dl_alpha
         weights /= weights.sum()
+        
 
-        chosen_gripper_idx = np.random.choice(df_avg['index'],size=self.gripper_per_sample,p=weights)
+        if self.sample_mode == 'random':
+            chosen_gripper_idx = np.random.choice(df_avg['index'],size=self.gripper_per_sample,p=weights)
+        elif self.sample_mode == 'top':
+            top_k = np.argpartition(-weights, self.gripper_per_sample)[:self.gripper_per_sample]
+            chosen_gripper_idx = df_avg['index'].iloc[top_k].values
+        else: raise NotImplementedError(self.sample_mode)
         
         gripper_data_total = []
         for gripper_idx in chosen_gripper_idx:
@@ -132,7 +142,8 @@ if __name__ == "__main__":
         dl_alpha=20.0,
         dl_eps = 1e-6,
         gripper_dir='data/grippers/',
-        gripper_per_sample=10
+        gripper_per_sample=10,
+        sample_mode='top'
     )
     dl = DataLoader(ds,batch_size=5,shuffle=True,drop_last=False,num_workers=2)
     for item in dl:

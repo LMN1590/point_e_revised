@@ -3,17 +3,21 @@ import torch.nn as nn
 from pytorch_lightning import LightningModule
 from pytorch_lightning.utilities import grad_norm
 import numpy as np
+from diffusers.training_utils import EMAModel
 
 from typing import Any,Dict,Mapping,Optional
 import typing
 import os
 from tqdm import tqdm
+import json
 
-from diffusers.training_utils import EMAModel
+import open3d as o3d
 
 from custom_diffusion.models.transformer.gripper_rep_diffusion_transformer import GripperRepDiffusionTransformer
 from custom_diffusion.diffusion.gaussian_diffusion.gaussian_diff_class import GaussianDiffusion
 from custom_diffusion.diffusion.diff_utils import _extract_into_tensor
+
+from diff_conditioning.simulation_env.designer.encoded_finger.design_bare import EncodedFingerBare
 
 class DiffusionTrainer(LightningModule):
     def __init__(
@@ -28,8 +32,12 @@ class DiffusionTrainer(LightningModule):
         lr_warmup_steps: int = 0,
         
         num_epochs:int = 1000,
+        acc_threshold:float = 0.01,
         
-        acc_threshold:float = 0.01
+        gripper_dim: int = 10,
+        max_num_segments: int = 10,
+        num_fingers: int = 4,
+        pcd_log_dir:str = ''
     ):
         super().__init__()
         self.save_hyperparameters(ignore=["noise_pred_net", "diffusion"])
@@ -45,10 +53,17 @@ class DiffusionTrainer(LightningModule):
         self.lr_warmup_steps = lr_warmup_steps
         
         self.num_epochs = num_epochs
-        
         self.acc_threshold = acc_threshold
-        
         self._compiled_flag = False
+        
+        self.num_fingers= num_fingers
+        self.max_num_segments = max_num_segments
+        self.gripper_dim = gripper_dim
+        self.total_dim = gripper_dim+1
+        self.pcd_log_dir = pcd_log_dir
+        with open('diff_conditioning/simulation_env/designer/encoded_finger/config/base_config.json') as f:
+            config = json.load(f)
+        self.designer = EncodedFingerBare(config,str(self.device))
         
     @property
     def noise_pred_net(self) -> GripperRepDiffusionTransformer:
@@ -190,7 +205,12 @@ class DiffusionTrainer(LightningModule):
                 x_t = model_mean + nonzero_mask * torch.exp(0.5 * model_log_variance) * torch.randn_like(x_t)
                 x_t = x_t.clamp(-1,1)
 
-        final_sample_loss = ((x_t - x_start) ** 2).flatten(1).mean(1) * sample_weights / B
+        indiv_final_sample_loss = ((x_t - x_start) ** 2).flatten(1).mean(1)  # [B*sample_size]
+        min_id = torch.argmin(indiv_final_sample_loss)
+        self._reconstruct_gripper(x_start[min_id],f'groundtruth_epoch_{self.current_epoch}_loss_{indiv_final_sample_loss[min_id].item()}.ply')
+        self._reconstruct_gripper(x_t[min_id],f'pred_epoch_{self.current_epoch}_loss_{indiv_final_sample_loss[min_id].item()}.ply')
+        
+        final_sample_loss = indiv_final_sample_loss * sample_weights / B
         accuracy = torch.mean(torch.abs(x_t - x_start) < self.acc_threshold, dtype=torch.float)
         self.log_dict(
             {
@@ -264,3 +284,21 @@ class DiffusionTrainer(LightningModule):
         # reference: https://lightning.ai/docs/pytorch/2.0.9/debug/debugging_intermediate.html#look-out-for-exploding-gradients
         norms = grad_norm(self.noise_pred_net, norm_type=2)
         self.log_dict(norms)
+        
+    def _reconstruct_gripper(self,tensor:torch.Tensor,filename:str):
+        pred_xstart = self.diffusion.unscale_channels(tensor) # [B,C,num_finger*num_segments]
+        gripper_emb = pred_xstart.permute(0,2,1).reshape(1,self.num_fingers,self.max_num_segments,self.total_dim) # [B,finger,segments,C]
+        
+        ctrl_tensors, end_masks = gripper_emb[:,:,:,:-1], gripper_emb[:,:,:,-1]
+        #TODO: This is because current implementation do not support suction
+        modded_ctrl_tensors = torch.cat([ctrl_tensors,torch.zeros(*ctrl_tensors.shape[:-1],1,device=ctrl_tensors.device,dtype = ctrl_tensors.dtype)],dim=-1)
+        
+        self.designer.reset()
+        pts = self.designer._create_representation_from_tensor(modded_ctrl_tensors[0],end_masks[0])
+        points_np = pts.cpu().numpy()
+
+        # Create an Open3D point cloud object
+        pcd = o3d.geometry.PointCloud()
+        pcd.points = o3d.utility.Vector3dVector(points_np)
+        pcd.paint_uniform_color([0.1, 0.7, 0.9])
+        o3d.io.write_point_cloud(os.path.join(self.pcd_log_dir,f"{filename}.ply"), pcd)

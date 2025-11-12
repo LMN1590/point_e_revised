@@ -60,6 +60,7 @@ class DatasetConfig(TypedDict):
     dl_eps:float
     gripper_dir: str
     gripper_per_sample:int
+    sample_mode:Literal['random','top']
     
 class TrainConfig(TypedDict):
     exp_name:str
@@ -122,11 +123,15 @@ def train(config:TrainConfig,existing_ckpt_path:Optional[str] = None,id:Optional
     with open(os.path.join(default_log_dir,'diffusion_config.yaml'),'w') as f:
         yaml.safe_dump(DIFFUSION_CONFIGS[config['diffusion_type']],f)
     base_model._init_fingers_topo(**config['gripper_config'])
+    pcd_log_dir = os.path.join(default_log_dir,'pcd')
+    os.makedirs(pcd_log_dir,exist_ok=True)
     diff_trainer = DiffusionTrainer(
         noise_pred_net=base_model,
         diffusion=base_diffusion,
         num_epochs = config['max_epochs'],
-        **config['diffusion_config']
+        **config['diffusion_config'],
+        **config['gripper_config'],
+        pcd_log_dir=pcd_log_dir
     )
     
     callbacks = [
@@ -193,7 +198,7 @@ if __name__ == "__main__":
 
     args = parser.parse_args()
     
-    config_file = os.path.join('config','training_config',args.train_config_path)
+    config_file = os.path.join('training','training_config',args.train_config_path)
     with open(config_file) as f:
         config:TrainConfig = yaml.safe_load(f)
     
