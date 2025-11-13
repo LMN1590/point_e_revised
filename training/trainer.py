@@ -136,7 +136,7 @@ class DiffusionTrainer(LightningModule):
                 "embeddings": object_encoding
             }
         )
-        alphas_cumprod = _extract_into_tensor(self.diffusion.alphas_cumprod,timesteps,(B*S))    # [B*S]
+        alphas_cumprod = _extract_into_tensor(self.diffusion.alphas_cumprod,timesteps,(B*S,))    # [B*S]
         snr = alphas_cumprod / (1.0 - alphas_cumprod)                                           # [B*S]
         w_t = torch.minimum(self.min_snr_gamma/snr, torch.ones_like(snr))                       # [B*S]
         loss_dict['min_snr_loss'] = loss_dict['mse_loss'] * w_t                                 # [B*S]
