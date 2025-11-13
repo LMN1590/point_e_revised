@@ -1,5 +1,6 @@
 import torch
 import torch.nn as nn
+import torch.nn.functional as F
 from pytorch_lightning import LightningModule
 from pytorch_lightning.utilities import grad_norm
 import numpy as np
@@ -106,6 +107,55 @@ class DiffusionTrainer(LightningModule):
                 update_after_step=self.ema_update_after_step,
             )
     
+    # def training_step(self,gripper_data:Dict[str,torch.Tensor],batch_idx:int):
+    #     """
+    #     Args:
+    #         gripper_data (Dict[str,torch.Tensor]): 3 keys 
+    #             'grippers' - [B,sample,gripper_dim_mask,finger*segments]
+    #             'object_embeddings' - [B,sample,feature_dim,n_ctx]
+    #             'weights' - [B,sample]
+    #         batch_idx (int): Index of current batch
+    #     """
+    #     B,S = gripper_data['grippers'].shape[:2]
+    #     grippers = gripper_data['grippers'].flatten(0,1) # [B*sample_size,gripper_dim_mask, finger*segments ~ n_ctx]
+    #     object_encoding = gripper_data['object_embedding'].flatten(0,1) # [B*sample,obj_dim,n_ctx_obj]
+    #     sample_weights_norm = gripper_data['weights'] / gripper_data['weights'].sum(1)[:,None]
+    #     sample_weights = sample_weights_norm.flatten(0,1) # [B*sample]
+        
+    #     timesteps = torch.randint(
+    #         0,
+    #         self.diffusion.num_timesteps,  # type: ignore
+    #         (B * S,),
+    #         device=self.device,
+    #     ).long()
+        
+    #     loss_dict:Dict[str,torch.Tensor] = self.diffusion.training_losses(
+    #         model=self.noise_pred_net,
+    #         x_start = grippers,
+    #         t = timesteps,
+    #         model_kwargs = {
+    #             "embeddings": object_encoding
+    #         }
+    #     )
+    #     alphas_cumprod = _extract_into_tensor(self.diffusion.alphas_cumprod,timesteps,(B*S,))    # [B*S]
+    #     snr = alphas_cumprod / (1.0 - alphas_cumprod)                                           # [B*S]
+    #     w_t = torch.minimum(self.min_snr_gamma/snr, torch.ones_like(snr))                       # [B*S]
+    #     loss_dict['min_snr_loss'] = loss_dict['mse_loss'] * w_t                                 # [B*S]
+        
+    #     mean_loss_dict = {k: (v * sample_weights / B).sum() for k,v in loss_dict.items() if "loss" in k}
+    #     mean_loss_dict['total_loss'] = (
+    #         (mean_loss_dict['min_snr_loss'] if self.min_snr_weighting else mean_loss_dict['mse_loss']) * self.l_simple_weight + 
+    #         ((mean_loss_dict['vb_loss']*self.l_vlb_weight) if 'vb_loss' in mean_loss_dict.keys() else 0)
+    #     )
+    #     self.log_dict(
+    #         {f"train/mean_{k}": v for k,v in mean_loss_dict.items()},
+    #         sync_dist=True,
+    #         on_step = True,
+    #         on_epoch = True,
+    #         # prog_bar=True
+    #     )
+    #     return mean_loss_dict['total_loss']
+    
     def training_step(self,gripper_data:Dict[str,torch.Tensor],batch_idx:int):
         """
         Args:
@@ -128,32 +178,80 @@ class DiffusionTrainer(LightningModule):
             device=self.device,
         ).long()
         
-        loss_dict:Dict[str,torch.Tensor] = self.diffusion.training_losses(
-            model=self.noise_pred_net,
-            x_start = grippers,
-            t = timesteps,
+        loss_dict = self.loss_calc(
+            self.noise_pred_net,
+            grippers,
+            timesteps,
             model_kwargs = {
                 "embeddings": object_encoding
-            }
-        )
-        alphas_cumprod = _extract_into_tensor(self.diffusion.alphas_cumprod,timesteps,(B*S,))    # [B*S]
-        snr = alphas_cumprod / (1.0 - alphas_cumprod)                                           # [B*S]
-        w_t = torch.minimum(self.min_snr_gamma/snr, torch.ones_like(snr))                       # [B*S]
-        loss_dict['min_snr_loss'] = loss_dict['mse_loss'] * w_t                                 # [B*S]
-        
-        mean_loss_dict = {k: (v * sample_weights / B).sum() for k,v in loss_dict.items() if "loss" in k}
-        mean_loss_dict['total_loss'] = (
-            (mean_loss_dict['min_snr_loss'] if self.min_snr_weighting else mean_loss_dict['mse_loss']) * self.l_simple_weight + 
-            ((mean_loss_dict['vb_loss']*self.l_vlb_weight) if 'vb_loss' in mean_loss_dict.keys() else 0)
+            },
+            sampling_weights=sample_weights,
+            batch_size = B
         )
         self.log_dict(
-            {f"train/mean_{k}": v for k,v in mean_loss_dict.items()},
+            {f"train/mean_{k}": v.mean() for k,v in loss_dict.items() if 'loss' in k},
             sync_dist=True,
             on_step = True,
             on_epoch = True,
             # prog_bar=True
         )
-        return mean_loss_dict['total_loss']
+        return loss_dict['total_loss'].mean()
+        
+    def loss_calc(self,model:nn.Module,x_start_og:torch.Tensor,t:torch.Tensor,model_kwargs:Dict,sampling_weights:torch.Tensor,batch_size:int):
+        x_start = self.diffusion.scale_channels(x_start_og)
+        noise = torch.randn_like(x_start)
+        x_t = self.diffusion.q_sample(x_start, t, noise=noise)
+
+        terms = {}
+        
+        assert self.diffusion.model_mean_type == 'epsilon' and self.diffusion.model_var_type == 'learned_range', "Other configurations are not supported"
+        model_output = model(x_t, t, **model_kwargs)
+        B, C = x_t.shape[:2]
+        assert model_output.shape == (B, C * 2, *x_t.shape[2:])
+        model_output, model_var_values = torch.split(model_output, C, dim=1)
+        # Learn the variance using the variational bound, but don't let
+        # it affect our mean prediction.
+        frozen_out = torch.cat([model_output.detach(), model_var_values], dim=1)
+        terms["vb_loss"] = self.diffusion._vb_terms_bpd(
+            model=lambda *args, r=frozen_out: r,
+            x_start=x_start,
+            x_t=x_t,
+            t=t,
+            clip_denoised=False,
+        )["output"]                                             # [B*S,]
+        
+        indiv_mse_loss = ((noise-model_output)**2)              # [B*S,C,n_ctx]
+        terms['mse_loss'] = indiv_mse_loss.flatten(1).mean(1)   # [B*S,]
+        
+        alphas_cumprod = _extract_into_tensor(self.diffusion.alphas_cumprod,t,(B,)) # [B*S]
+        snr = alphas_cumprod / (1.0 - alphas_cumprod)                               # [B*S]
+        w_t = torch.minimum(self.min_snr_gamma/snr, torch.ones_like(snr))           # [B*S]
+        terms['min_snr_loss'] = terms['mse_loss'] * w_t                             # [B*S]
+        terms['weighted_mse_loss'] = terms['min_snr_loss'] * sampling_weights / batch_size  # [B*S]
+        terms['total_loss'] = (
+            (terms['min_snr_loss'] if self.min_snr_weighting else terms['mse_loss']) * self.l_simple_weight + 
+            ((terms['vb_loss']*self.l_vlb_weight) if 'vb_loss' in terms.keys() else 0)
+        )
+        
+        for i in range(self.total_dim): terms[f'raw_dim_{i}_mse_loss' if i!=self.total_dim-1 else 'raw_dim_mask_mse_loss'] = indiv_mse_loss[:,i,:].mean(1)  # [B*S,]
+            
+        terms['sample_weights'] = w_t * sampling_weights/batch_size
+        
+        # Calculate Mask Loss
+        assert x_t.shape == model_output.shape
+        pred_xstart = self.diffusion._predict_xstart_from_eps(x_t=x_t, t=t, eps=model_output)
+        pred_xstart_og = self.diffusion.unscale_channels(pred_xstart)                           # [B*S,C,n_ctx]
+        
+        pred_mask = pred_xstart_og[:,-1,:].reshape(-1,self.num_fingers,self.max_num_segments)   # [B*S,num_fingers,segments]
+        gt_mask   = x_start_og[:,-1,:].reshape(-1,self.num_fingers,self.max_num_segments)
+        
+        kl_loss = F.kl_div(
+            torch.log_softmax(pred_mask,dim = -1),
+            torch.softmax(gt_mask,dim=-1)
+        )                                                                                       # [B*S,num_fingers,segments]
+        terms['end_mask_kl_loss'] = kl_loss.flatten(1).mean(1)                                  # [B*S,]
+        
+        return terms
     
     def validation_step(self,gripper_data:Dict[str,torch.Tensor],batch_idx:int):
         """
@@ -234,8 +332,12 @@ class DiffusionTrainer(LightningModule):
                 
                 x_t = model_mean + nonzero_mask * torch.exp(0.5 * model_log_variance) * torch.randn_like(x_t)
                 x_t = x_t.clamp(-1,1)
-
-        indiv_final_sample_loss = ((x_t - x_start) ** 2).flatten(1).mean(1)  # [B*sample_size]
+                
+        terms = {}
+        indiv_dim_final_sample_loss = ((x_t - x_start) ** 2)                        # [B*sample_size,C,n_ctx]
+        for i in range(self.total_dim): terms[f'raw_dim_{i}_mse_loss' if i!=self.total_dim-1 else 'raw_dim_mask_mse_loss'] = indiv_dim_final_sample_loss[:,i,:].mean(1)  # [B*S,]
+        
+        indiv_final_sample_loss = indiv_dim_final_sample_loss.flatten(1).mean(1)    # [B*sample_size]
         min_id = torch.argmin(indiv_final_sample_loss)
         
         self._reconstruct_gripper(
@@ -249,11 +351,25 @@ class DiffusionTrainer(LightningModule):
         
         final_sample_loss = indiv_final_sample_loss * sample_weights / B
         accuracy = torch.mean(torch.abs(x_t - x_start) < self.acc_threshold, dtype=torch.float)
+        
+        # Calculate KL divergence for samples
+        pred_mask = x_t[:,-1,:].reshape(-1,self.num_fingers,self.max_num_segments)   # [B*S,num_fingers,segments]
+        gt_mask   = x_start[:,-1,:].reshape(-1,self.num_fingers,self.max_num_segments)
+        
+        kl_loss = F.kl_div(
+            torch.log_softmax(pred_mask,dim = -1),
+            torch.softmax(gt_mask,dim=-1)
+        )                                                   # [B*S,num_fingers,segments]
+        end_mask_kl_loss = kl_loss.flatten(1).mean(1)       # [B*S,]
+        
         self.log_dict(
             {
                 "val/noise_pred_loss": (noise_pred_loss/self.diffusion.num_timesteps).item(),
                 "val/final_sample_loss": final_sample_loss.sum().item(),
                 "val/accuracy": accuracy,
+                "val/end_mask_kl_loss": end_mask_kl_loss.mean().item()
+            }|{
+                f'val/{k}':v.mean().item() for k,v in terms.items()
             },
             sync_dist=True,
             on_step=True,
