@@ -34,7 +34,6 @@ class DiffusionTrainer(LightningModule):
         lr_warmup_percentage: int = 0,
         warmup_min_lr_ratio:float = 0.1,
         min_lr_ratio:float = 1e-3,
-        
         acc_threshold:float = 0.01,
         
         num_epochs:int = 1000,
@@ -42,8 +41,13 @@ class DiffusionTrainer(LightningModule):
         max_num_segments: int = 10,
         num_fingers: int = 4,
         pcd_log_dir:str = '',
+        total_num_steps:int = 100,
         
-        total_num_steps:int = 100
+        l_simple_weight:float = 1.0,
+        l_vlb_weight:float = 1e-3,
+        
+        min_snr_weighting: bool = True,
+        min_snr_gamma: float = 5.0
     ):
         super().__init__()
         self.save_hyperparameters(ignore=["noise_pred_net", "diffusion"])
@@ -70,6 +74,12 @@ class DiffusionTrainer(LightningModule):
         self.gripper_dim = gripper_dim
         self.total_dim = gripper_dim+1
         self.pcd_log_dir = pcd_log_dir
+        
+        self.l_simple_weight = l_simple_weight
+        self.l_vlb_weight = l_vlb_weight
+        
+        self.min_snr_weighting = min_snr_weighting
+        self.min_snr_gamma = min_snr_gamma
         with open('diff_conditioning/simulation_env/designer/encoded_finger/config/base_config.json') as f:
             config = json.load(f)
         self.designer = EncodedFingerBare(config,str(self.device))
@@ -126,7 +136,16 @@ class DiffusionTrainer(LightningModule):
                 "embeddings": object_encoding
             }
         )
+        alphas_cumprod = _extract_into_tensor(self.diffusion.alphas_cumprod,timesteps,(B*S))    # [B*S]
+        snr = alphas_cumprod / (1.0 - alphas_cumprod)                                           # [B*S]
+        w_t = torch.minimum(self.min_snr_gamma/snr, torch.ones_like(snr))                       # [B*S]
+        loss_dict['min_snr_loss'] = loss_dict['mse_loss'] * w_t                                 # [B*S]
+        
         mean_loss_dict = {k: (v * sample_weights / B).sum() for k,v in loss_dict.items() if "loss" in k}
+        mean_loss_dict['total_loss'] = (
+            (mean_loss_dict['min_snr_loss'] if self.min_snr_weighting else mean_loss_dict['mse_loss']) * self.l_simple_weight + 
+            ((mean_loss_dict['vb_loss']*self.l_vlb_weight) if 'vb_loss' in mean_loss_dict.keys() else 0)
+        )
         self.log_dict(
             {f"train/mean_{k}": v for k,v in mean_loss_dict.items()},
             sync_dist=True,

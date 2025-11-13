@@ -10,11 +10,17 @@ diffusion_config:
   min_lr_ratio: !!float 1e-3
   acc_threshold: 0.01
 
+  l_simple_weight: !!float 1.0
+  l_vlb_weight: !!float 1e-3
+
+  min_snr_weighting: true
+  min_snr_gamma: 5.0
+
 train_dataset_config:
   csv_path: 'data/grippers/data.csv'
   object_encoder_name: placeholder
   max_cond_obj: 1
-  dl_alpha: 10.0
+  dl_alpha: 20.0
   dl_eps: !!float 1e-6
   gripper_dir: data/grippers/
   gripper_per_sample: 100

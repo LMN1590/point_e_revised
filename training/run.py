@@ -51,8 +51,13 @@ class DiffusionTrainerConfig(TypedDict):
     lr_warmup_percentage:int
     warmup_min_lr_ratio: float
     min_lr_ratio: float
-
     acc_threshold: float
+    
+    l_simple_weight: float
+    l_vlb_weight: float
+    
+    min_snr_weighting: bool
+    min_snr_gamma: float
 
 class DatasetConfig(TypedDict):
     csv_path:str
