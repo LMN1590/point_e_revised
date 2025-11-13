@@ -35,9 +35,9 @@ class DiffusionTrainer(LightningModule):
         warmup_min_lr_ratio:float = 0.1,
         min_lr_ratio:float = 1e-3,
         
-        num_epochs:int = 1000,
         acc_threshold:float = 0.01,
         
+        num_epochs:int = 1000,
         gripper_dim: int = 10,
         max_num_segments: int = 10,
         num_fingers: int = 4,
@@ -154,6 +154,8 @@ class DiffusionTrainer(LightningModule):
             "embeddings": object_encoding
         }
         
+        gripper_idx = gripper_data['gripper_idx'].flatten(0,1) # [B*sample]
+        
         sample_weights_norm = gripper_data['weights'] / gripper_data['weights'].sum(1)[:,None]
         sample_weights = sample_weights_norm.flatten(0,1).detach() # [B*sample]
         
@@ -216,8 +218,15 @@ class DiffusionTrainer(LightningModule):
 
         indiv_final_sample_loss = ((x_t - x_start) ** 2).flatten(1).mean(1)  # [B*sample_size]
         min_id = torch.argmin(indiv_final_sample_loss)
-        self._reconstruct_gripper(x_start[min_id],f'groundtruth_epoch_{self.current_epoch}_loss_{indiv_final_sample_loss[min_id].item()}.ply')
-        self._reconstruct_gripper(x_t[min_id],f'pred_epoch_{self.current_epoch}_loss_{indiv_final_sample_loss[min_id].item()}.ply')
+        
+        self._reconstruct_gripper(
+            x_start[min_id],
+            f'epoch_{self.current_epoch}_groundtruth_loss_{indiv_final_sample_loss[min_id].item()}_gripper_id_{gripper_idx[min_id].item()}.ply'
+        )
+        self._reconstruct_gripper(
+            x_t[min_id],
+            f'epoch_{self.current_epoch}_pred_loss_{indiv_final_sample_loss[min_id].item()}_gripper_id_{gripper_idx[min_id].item()}.ply'
+        )
         
         final_sample_loss = indiv_final_sample_loss * sample_weights / B
         accuracy = torch.mean(torch.abs(x_t - x_start) < self.acc_threshold, dtype=torch.float)
@@ -317,7 +326,7 @@ class DiffusionTrainer(LightningModule):
         self.log_dict(norms)
         
     def _reconstruct_gripper(self,tensor:torch.Tensor,filename:str):
-        pred_xstart = self.diffusion.unscale_channels(tensor) # [B,C,num_finger*num_segments]
+        pred_xstart = self.diffusion.unscale_channels(tensor[None,:,:]) # [B,C,num_finger*num_segments]
         gripper_emb = pred_xstart.permute(0,2,1).reshape(1,self.num_fingers,self.max_num_segments,self.total_dim) # [B,finger,segments,C]
         
         ctrl_tensors, end_masks = gripper_emb[:,:,:,:-1], gripper_emb[:,:,:,-1]

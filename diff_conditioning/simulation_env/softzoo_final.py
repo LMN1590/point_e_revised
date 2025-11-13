@@ -154,6 +154,7 @@ class SoftZooSimulation(BaseCond):
             gripper_emb = pred_xstart.permute(0,2,1).reshape(B,self.num_fingers,self.max_num_segments,C) # [B,finger,segments,C]
             
             ctrl_tensors, end_masks = gripper_emb[:,:,:,:-1], gripper_emb[:,:,:,-1]
+            #TODO: This is because current implementation do not support suction
             modded_ctrl_tensors = torch.cat([ctrl_tensors,torch.zeros(*ctrl_tensors.shape[:-1],1,device=ctrl_tensors.device,dtype = ctrl_tensors.dtype)],dim=-1)
             
             for i,t_sample in zip(range(B//2),t.tolist()):

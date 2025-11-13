@@ -210,7 +210,6 @@ if __name__ == "__main__":
     with open(config_file) as f:
         config:TrainConfig = yaml.safe_load(f)
     
-    run_id = args.run_id if args.run_id is not None else f"{str(date.today()).replace('-','')}_{str(uuid())[-6:]}"
-    run_id += f"_seed{config['seed']}"
+    run_id = f"{str(date.today()).replace('-','')}_{'' if args.run_id is None else args.run_id}_{str(uuid())[-6:]}_seed{config['seed']}"
     
     train(config,args.ckpt_path,run_id)
