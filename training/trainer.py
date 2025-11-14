@@ -247,7 +247,8 @@ class DiffusionTrainer(LightningModule):
         
         kl_loss = F.kl_div(
             torch.log_softmax(pred_mask,dim = -1),
-            torch.softmax(gt_mask,dim=-1)
+            torch.softmax(gt_mask,dim=-1),
+            reduction= 'none'
         )                                                                                       # [B*S,num_fingers,segments]
         terms['end_mask_kl_loss'] = kl_loss.flatten(1).mean(1)                                  # [B*S,]
         
@@ -358,7 +359,8 @@ class DiffusionTrainer(LightningModule):
         
         kl_loss = F.kl_div(
             torch.log_softmax(pred_mask,dim = -1),
-            torch.softmax(gt_mask,dim=-1)
+            torch.softmax(gt_mask,dim=-1),
+            reduction= 'none'
         )                                                   # [B*S,num_fingers,segments]
         end_mask_kl_loss = kl_loss.flatten(1).mean(1)       # [B*S,]
         

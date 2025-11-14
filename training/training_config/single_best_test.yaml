@@ -4,7 +4,7 @@ seed: 69
 diffusion_config:
   ema_power: 0.75
   ema_update_after_step: 0
-  learning_rate: !!float 1e-4
+  learning_rate: !!float 5e-5
   lr_warmup_percentage: 0.05
   warmup_min_lr_ratio: 0.1
   min_lr_ratio: !!float 1e-3
@@ -23,8 +23,8 @@ train_dataset_config:
   dl_alpha: 20.0
   dl_eps: !!float 1e-6
   gripper_dir: data/grippers/
-  gripper_per_sample: 100
-  sample_mode: random
+  gripper_per_sample: 1
+  sample_mode: top
 val_dataset_config:
   csv_path: 'data/grippers/data.csv'
   object_encoder_name: placeholder
@@ -32,7 +32,7 @@ val_dataset_config:
   dl_alpha: 25.0
   dl_eps: !!float 1e-6
   gripper_dir: data/grippers/
-  gripper_per_sample: 25
+  gripper_per_sample: 1
   sample_mode: top
 
 gripper_config:
@@ -55,12 +55,12 @@ callbacks_config:
     save_weights_only: false
     auto_insert_metric_name: false
   DeviceStatsMonitor: {}
-  EarlyStopping:
-    monitor: "val/final_sample_loss"
-    min_delta: 0.0
-    patience: 250
-    verbose: false
-    mode: min
+  # EarlyStopping:
+  #   monitor: "val/final_sample_loss"
+  #   min_delta: 0.0
+  #   patience: 250
+  #   verbose: false
+  #   mode: min
 
 logger_type: ['tensorboard','csv']
 gpus: [1]
